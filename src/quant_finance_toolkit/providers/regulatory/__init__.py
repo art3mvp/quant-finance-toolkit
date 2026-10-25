@@ -1,0 +1,1 @@
+"""Fundamentales, documentos y registros."""

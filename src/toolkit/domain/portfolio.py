@@ -2,14 +2,48 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
 from toolkit.domain.errors import InvalidSeriesError
 from toolkit.domain.models import PriceSeries
+from toolkit.domain.simulation import simulate_gbm
 
 #: Tolerancia para aceptar que los pesos suman 1.
 WEIGHT_TOLERANCE = 1e-6
+
+
+@dataclass(frozen=True)
+class SimulationResult:
+    """Resultado de una simulación de Monte Carlo.
+
+    Attributes:
+        paths: Array ``(n_steps + 1, n_simulations)`` con las trayectorias.
+        initial_value: Valor de partida.
+        mu: Retorno por periodo usado.
+        sigma: Volatilidad por periodo usada.
+    """
+
+    paths: np.ndarray
+    initial_value: float
+    mu: float
+    sigma: float
+
+    @property
+    def final_values(self) -> np.ndarray:
+        """Valor final de cada trayectoria."""
+        return self.paths[-1]
+
+    def quantile(self, q: float) -> float:
+        """Cuantil del valor final (p. ej. 0.05 para el percentil 5)."""
+        return float(np.quantile(self.final_values, q))
+
+    @property
+    def prob_loss(self) -> float:
+        """Probabilidad de terminar por debajo del valor inicial."""
+        return float((self.final_values < self.initial_value).mean())
 
 
 class Portfolio:
@@ -85,4 +119,40 @@ class Portfolio:
         """Volatilidad de la cartera por periodo: sqrt(w' Σ w)."""
         w = self.weight_vector
         return float(np.sqrt(w @ self.covariance.to_numpy() @ w))
-        
+
+    def monte_carlo(
+        self,
+        n_steps: int = 252,
+        n_simulations: int = 1000,
+        initial_value: float = 100.0,
+        mu: float | None = None,
+        sigma: float | None = None,
+        seed: int | None = None,
+    ) -> SimulationResult:
+        """Simula la evolución de la cartera completa.
+
+        Si no se indican ``mu`` y ``sigma`` (por periodo), se estiman de los datos.
+        """
+        mu = self.mean_return if mu is None else mu
+        sigma = self.volatility if sigma is None else sigma
+        paths = simulate_gbm(initial_value, mu, sigma, n_steps, n_simulations, seed)
+        return SimulationResult(paths, initial_value, mu, sigma)
+
+    def monte_carlo_asset(
+        self,
+        ticker: str,
+        n_steps: int = 252,
+        n_simulations: int = 1000,
+        mu: float | None = None,
+        sigma: float | None = None,
+        seed: int | None = None,
+    ) -> SimulationResult:
+        """Simula un único activo de la cartera, partiendo de su último precio."""
+        if ticker not in self.series:
+            raise InvalidSeriesError(f"Portfolio: el ticker {ticker!r} no está en la cartera")
+        s = self.series[ticker]
+        mu = s.mean_return if mu is None else mu
+        sigma = s.std_return if sigma is None else sigma
+        initial = float(s.prices.iloc[-1])
+        paths = simulate_gbm(initial, mu, sigma, n_steps, n_simulations, seed)
+        return SimulationResult(paths, initial, mu, sigma)

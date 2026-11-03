@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toolkit-financiero"
+version = "0.1.0"
+description = "Toolkit para extraer, estandarizar y analizar datos bursátiles y gestionar carteras (arquitectura hexagonal)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Artem Pesin" }]
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=1.24",
+    "yfinance>=0.2.40",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "responses>=0.25",
+    "matplotlib>=3.8",
+]
+parquet = ["pyarrow>=15.0"]
+
+[project.scripts]
+toolkit = "toolkit.bootstrap:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra -m 'not network'"
+markers = [
+    "network: tests que acceden a Internet (excluidos por defecto; ejecutar con -m network)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]  # permitir caracteres no ASCII en docstrings en español
+
+[tool.ruff.format]
+exclude = ["*.md"]  # los ejemplos del README se mantienen tal cual

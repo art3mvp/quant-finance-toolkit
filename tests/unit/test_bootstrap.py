@@ -7,6 +7,8 @@ import pytest
 from tests.fakes import FakeMacroProvider, FakePriceProvider
 from toolkit import bootstrap
 from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.market.alpha_vantage import AlphaVantagePriceProvider
+from toolkit.adapters.outbound.market.twelve_data import TwelveDataPriceProvider
 from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
 from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
@@ -47,6 +49,17 @@ def test_specialized_sources_are_registered(monkeypatch: pytest.MonkeyPatch) -> 
     assert isinstance(service.price_provider, CoinGeckoPriceProvider)
     assert service.price_provider.plan == "pro"
     assert isinstance(service.macro_provider, EiaMacroProvider)
+
+
+@pytest.mark.parametrize(
+    ("name", "cls"),
+    [
+        ("alpha_vantage", AlphaVantagePriceProvider),
+        ("twelve_data", TwelveDataPriceProvider),
+    ],
+)
+def test_market_sources_are_registered(name: str, cls: type) -> None:
+    assert isinstance(bootstrap.build_download_service(name, None).price_provider, cls)
 
 
 def test_macro_source_can_be_disabled() -> None:

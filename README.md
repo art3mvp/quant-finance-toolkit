@@ -9,6 +9,8 @@ aplicada a mercados financieros.
   | Tipo | Fuente | Datos | `--source` | Clave |
   |------|--------|-------|------------|-------|
   | market | Yahoo Finance | acciones e índices (OHLCV) | `yahoo` | no |
+  | market | Alpha Vantage | acciones (OHLCV diario/semanal/mensual) | `alpha_vantage` | `ALPHA_VANTAGE_API_KEY` |
+  | market | Twelve Data | acciones, índices, ETFs (OHLCV) | `twelve_data` | `TWELVE_DATA_API_KEY` |
   | macro | FRED/ALFRED | series macro, con vintages (*look-ahead bias*) | `fred` | `FRED_API_KEY` |
   | specialized | CoinGecko | criptoactivos (cierre + volumen) | `coingecko` | opcional |
   | specialized | EIA | energía: WTI, Brent, gas Henry Hub... | `eia` | `EIA_API_KEY` |
@@ -67,12 +69,25 @@ toolkit macro CPIAUCSL DGS10 --start 2000-01-01
 # Series macro tal como se publicaron el 30/06/2015 (ALFRED)
 toolkit macro CPIAUCSL GDP --start 2000-01-01 --as-of 2015-06-30 --out data/ --format parquet
 
+# Misma petición, otra fuente de mercado: la salida es la misma PriceSeries
+toolkit prices AAPL MSFT --source twelve_data --start 2024-01-01
+toolkit prices IBM --source alpha_vantage --interval weekly
+
 # Criptoactivos (CoinGecko): el ticker es el id de CoinGecko, no el símbolo
 toolkit prices bitcoin ethereum --source coingecko --type crypto --start 2026-01-01
 
 # Energía (EIA): WTI y Brent diarios, gas natural Henry Hub mensual
 toolkit macro PET.RWTC.D PET.RBRTE.D NG.RNGWHHD.M --source eia --start 2020-01-01
 ```
+
+Notas sobre las fuentes de mercado:
+
+- Ninguna de las fuentes REST da `adj_close` en su plan gratuito. Para retornos totales
+  (con dividendos y splits) usa Yahoo.
+- **Alpha Vantage** fecha las barras semanales y mensuales en la última sesión del
+  periodo, y Yahoo en la primera. El plan gratuito limita las peticiones por minuto y día.
+- **Twelve Data** devuelve como máximo 5000 barras por petición. Los índices pueden no
+  traer volumen, que queda a `NaN`.
 
 Notas sobre las fuentes especializadas:
 
@@ -167,7 +182,8 @@ ruff check .                # linter
 │   │   ├── inbound/cli.py      # argparse
 │   │   └── outbound/           # un subpaquete por tipo de fuente
 │   │       ├── _http.py        # cliente HTTP común (reintentos, ocultar claves)
-│   │       ├── market/         # yahoo.py
+│   │       ├── _prices.py      # normalización OHLCV común
+│   │       ├── market/         # yahoo, alpha_vantage, twelve_data
 │   │       ├── macro/          # fred.py
 │   │       └── specialized/    # coingecko.py, eia.py
 │   └── bootstrap.py            # composition root + entry point

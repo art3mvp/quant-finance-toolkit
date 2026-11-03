@@ -26,6 +26,8 @@ flowchart LR
     subgraph OUT["Adaptadores outbound (por tipo)"]
         subgraph MKT["market/"]
             YF["YahooPriceProvider<br/>(yfinance)"]
+            AV["AlphaVantagePriceProvider"]
+            TD["TwelveDataPriceProvider"]
         end
         subgraph MAC["macro/"]
             FRED["FredMacroProvider<br/>(API REST FRED/ALFRED)"]
@@ -34,17 +36,18 @@ flowchart LR
             CG["CoinGeckoPriceProvider<br/>(cripto)"]
             EIA["EiaMacroProvider<br/>(energía)"]
         end
-        HTTP["_http.HttpClient<br/>(infraestructura común)"]
+        HTTP["_http · _prices<br/>(infraestructura común)"]
         FAKE["Fake providers<br/>(solo en tests/)"]
     end
 
     CLI --> PIN
     NB -.-> PIN
-    POUT -. implementado por .-> YF
+    POUT -. implementado por .-> MKT
     POUT -. implementado por .-> FRED
     POUT -. implementado por .-> CG
     POUT -. implementado por .-> EIA
     POUT -. implementado por .-> FAKE
+    MKT --> HTTP
     CG --> HTTP
     EIA --> HTTP
 

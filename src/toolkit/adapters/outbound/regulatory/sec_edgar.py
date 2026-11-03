@@ -101,7 +101,8 @@ class SecEdgarMacroProvider:
         self.data_url = data_url.rstrip("/")
         self.tickers_url = tickers_url
         self._http = HttpClient(self.name, secrets=[self._user_agent], **http_options)
-        self._lock = threading.Lock()  # el servicio descarga en paralelo
+        self._lock = threading.Lock()  # protege el mapa de tickers y el de locks
+        self._cik_locks: dict[str, threading.Lock] = {}
         self._facts: dict[str, dict[str, Any]] = {}
         self._tickers: dict[str, str] | None = None
 
@@ -165,8 +166,14 @@ class SecEdgarMacroProvider:
         return cik
 
     def _company_facts(self, cik: str, series_id: str) -> dict[str, Any]:
-        """``companyfacts`` de la empresa, cacheado (una petición por CIK y lote)."""
+        """``companyfacts`` de la empresa, cacheado durante la vida del proveedor.
+
+        Un lock por CIK: varias series de la misma empresa comparten una sola petición y
+        empresas distintas se descargan en paralelo.
+        """
         with self._lock:
+            company_lock = self._cik_locks.setdefault(cik, threading.Lock())
+        with company_lock:
             if cik not in self._facts:
                 payload = self._http.get_json(
                     f"{self.data_url}/companyfacts/CIK{cik}.json",

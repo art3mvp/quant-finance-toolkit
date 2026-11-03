@@ -1,7 +1,7 @@
 """Test de arquitectura: verifica la regla de dependencias del hexágono con ``ast``.
 
 Reglas:
-    * ``domain``   → solo stdlib, ``pandas``, ``numpy`` y ``toolkit.domain``.
+    * ``domain``   → solo stdlib, ``pandas``, ``numpy``, ``matplotlib`` y ``toolkit.domain``.
     * ``ports``    → además puede importar ``toolkit.domain``. Sin librerías de I/O.
     * ``services`` → ``toolkit.domain`` y ``toolkit.ports``. Sin librerías de I/O.
     * ``adapters`` → ``toolkit.domain`` y ``toolkit.ports``; nunca otro adaptador,
@@ -22,7 +22,9 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 PACKAGE = "toolkit"
 
 #: Librerías de terceros permitidas en las capas internas (sin I/O de red).
-PURE_THIRD_PARTY = {"pandas", "numpy"}
+#: ``matplotlib`` se admite porque ``Cartera.plots_report()`` y la visualización de
+#: Monte Carlo son métodos del dominio según el enunciado (ver ADR).
+PURE_THIRD_PARTY = {"pandas", "numpy", "matplotlib"}
 
 #: Capas de ``toolkit`` que puede importar cada capa.
 ALLOWED_INTERNAL: dict[str, set[str]] = {

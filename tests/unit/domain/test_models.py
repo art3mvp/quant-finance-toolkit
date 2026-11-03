@@ -188,6 +188,6 @@ class TestDownloadResult:
         assert result.all_failed
 
 
-def test_portfolio_is_a_stub() -> None:
-    with pytest.raises(NotImplementedError):
+def test_portfolio_rejects_empty_input() -> None:
+    with pytest.raises(InvalidSeriesError):
         Portfolio(series=[], weights={})

@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Protocol, runtime_checkable
 
+from toolkit.domain.documents import RegulatoryDocument
 from toolkit.domain.models import AssetType, Frequency, MacroSeries, PriceSeries
 
 
@@ -80,5 +81,37 @@ class MacroProvider(Protocol):
             SeriesNotFoundError: Si la serie no existe o no tiene datos en el rango.
             ConfigurationError: Si falta configuración necesaria (p. ej. API key).
             ProviderError: Ante cualquier otro fallo del proveedor.
+        """
+        ...
+
+
+@runtime_checkable
+class DocumentProvider(Protocol):
+    """Proveedor de documentos regulatorios (hechos relevantes, ficheros de registros)."""
+
+    #: Nombre corto de la fuente (p. ej. ``"cnmv"``); se guarda en ``RegulatoryDocument.source``.
+    name: str
+
+    def fetch_documents(
+        self,
+        query: str | None,
+        start: date | None,
+        end: date | None,
+        limit: int,
+    ) -> list[RegulatoryDocument]:
+        """Descarga documentos, del más reciente al más antiguo.
+
+        Args:
+            query: Filtro propio de la fuente (emisor, tipo de fichero...) o ``None``.
+            start: Fecha mínima de publicación (incluida).
+            end: Fecha máxima de publicación (incluida).
+            limit: Número máximo de documentos a devolver (>= 1).
+
+        Returns:
+            Documentos normalizados; lista vacía si ninguno cumple el filtro.
+
+        Raises:
+            ConfigurationError: Si falta configuración necesaria.
+            ProviderError: Ante cualquier fallo del proveedor.
         """
         ...

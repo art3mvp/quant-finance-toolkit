@@ -10,6 +10,7 @@ Ejemplos::
 
     toolkit prices AAPL MSFT ^GSPC --start 2020-01-01 --end 2024-12-31 --type equity --out data/
     toolkit macro CPIAUCSL DGS10 --start 2000-01-01 --as-of 2015-06-30
+    toolkit docs --source cnmv --query indra
 
 Códigos de salida: 0 si al menos una serie se descarga; 1 si fallan todas;
 2 ante errores de uso o configuración.
@@ -30,6 +31,7 @@ from typing import Any, TextIO
 
 import pandas as pd
 
+from toolkit.domain.documents import RegulatoryDocument
 from toolkit.domain.errors import ToolkitError
 from toolkit.domain.models import (
     AssetType,
@@ -41,9 +43,12 @@ from toolkit.domain.models import (
     PriceSeries,
 )
 from toolkit.ports.inbound import DownloadData
+from toolkit.ports.outbound import DocumentProvider
 
 #: Fábrica inyectada: (fuente de precios, fuente macro | None, max_workers) -> DownloadData.
 ServiceFactory = Callable[[str, str | None, int], DownloadData]
+#: Fábrica inyectada: nombre de la fuente -> DocumentProvider.
+DocumentFactory = Callable[[str], DocumentProvider]
 
 EXIT_OK = 0
 EXIT_ALL_FAILED = 1
@@ -59,7 +64,9 @@ def _iso_date(value: str) -> date:
 
 
 def build_parser(
-    price_sources: Sequence[str], macro_sources: Sequence[str]
+    price_sources: Sequence[str],
+    macro_sources: Sequence[str],
+    document_sources: Sequence[str] = (),
 ) -> argparse.ArgumentParser:
     """Construye el parser de argumentos de la CLI."""
     parser = argparse.ArgumentParser(
@@ -98,9 +105,19 @@ def build_parser(
     macro = sub.add_parser("macro", parents=[common], help="descarga series macroeconómicas")
     macro.add_argument("series_ids", nargs="+", help="ids de serie, p. ej. CPIAUCSL DGS10")
     macro.add_argument(
-        "--as-of", type=_iso_date, help="vintage: datos tal como se publicaron ese día (ALFRED)"
+        "--as-of",
+        type=_iso_date,
+        help="vintage: datos tal como se publicaron ese día (fred, sec_edgar)",
     )
     macro.add_argument("--source", choices=list(macro_sources), default="fred")
+
+    if document_sources:
+        docs = sub.add_parser("docs", help="lista documentos regulatorios (CNMV, ESMA...)")
+        docs.add_argument("--source", choices=list(document_sources), required=True)
+        docs.add_argument("--query", help="filtro de la fuente: emisor (cnmv), tipo (esma)")
+        docs.add_argument("--start", type=_iso_date, help="publicados desde YYYY-MM-DD")
+        docs.add_argument("--end", type=_iso_date, help="publicados hasta YYYY-MM-DD (incluida)")
+        docs.add_argument("--limit", type=int, default=20, help="máximo de documentos")
     return parser
 
 
@@ -111,6 +128,8 @@ def run(
     macro_sources: Sequence[str] = ("fred",),
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
+    document_factory: DocumentFactory | None = None,
+    document_sources: Sequence[str] = (),
 ) -> int:
     """Ejecuta la CLI y devuelve el código de salida.
 
@@ -121,11 +140,16 @@ def run(
         macro_sources: Fuentes macro disponibles (para ``--source``).
         stdout: Flujo de salida (por defecto ``sys.stdout``).
         stderr: Flujo de errores (por defecto ``sys.stderr``).
+        document_factory: Fábrica de proveedores de documentos (activa ``docs``).
+        document_sources: Fuentes de documentos disponibles (para ``docs --source``).
     """
     out = stdout or sys.stdout
     err = stderr or sys.stderr
-    args = build_parser(price_sources, macro_sources).parse_args(argv)
+    sources = document_sources if document_factory is not None else ()
+    args = build_parser(price_sources, macro_sources, sources).parse_args(argv)
     _configure_logging(args.verbose)
+    if args.command == "docs" and document_factory is not None:
+        return _run_docs(args, document_factory, out, err)
 
     result: DownloadResult[Any]
     try:
@@ -165,7 +189,33 @@ def run(
     return EXIT_ALL_FAILED if result.n_success == 0 else EXIT_OK
 
 
+def _run_docs(args: argparse.Namespace, factory: DocumentFactory, out: TextIO, err: TextIO) -> int:
+    """Subcomando ``docs``: lista documentos; 1 si no hay ninguno, 2 ante errores."""
+    if args.limit < 1:
+        print("error: --limit debe ser >= 1", file=err)
+        return EXIT_USAGE
+    if args.start and args.end and args.start > args.end:
+        print("error: --start no puede ser posterior a --end", file=err)
+        return EXIT_USAGE
+    try:
+        documents = factory(args.source).fetch_documents(
+            args.query, args.start, args.end, args.limit
+        )
+    except ToolkitError as exc:
+        print(f"error: {exc}", file=err)
+        return EXIT_USAGE
+    _print_documents(documents, out)
+    return EXIT_OK if documents else EXIT_ALL_FAILED
+
+
 # ---------------------------------------------------------------------- presentación
+
+
+def _print_documents(documents: Sequence[RegulatoryDocument], out: TextIO) -> None:
+    print(f"Documentos: {len(documents)}", file=out)
+    for doc in documents:
+        print(f"{doc.published_at:%Y-%m-%d %H:%M}  {doc.identifier:<12}  {doc.title}", file=out)
+        print(f"{'':18}{doc.url}", file=out)
 
 
 def _print_prices(result: DownloadResult[PriceSeries], out: TextIO) -> None:

@@ -16,6 +16,9 @@ from toolkit.adapters.outbound.macro.world_bank import WorldBankMacroProvider
 from toolkit.adapters.outbound.market.alpha_vantage import AlphaVantagePriceProvider
 from toolkit.adapters.outbound.market.twelve_data import TwelveDataPriceProvider
 from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.regulatory.cnmv import CnmvDocumentProvider
+from toolkit.adapters.outbound.regulatory.esma import EsmaDocumentProvider
+from toolkit.adapters.outbound.regulatory.sec_edgar import SecEdgarMacroProvider
 from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
 from toolkit.domain.errors import ConfigurationError
@@ -77,10 +80,18 @@ def test_market_sources_are_registered(name: str, cls: type) -> None:
         ("world_bank", WorldBankMacroProvider),
         ("banco_espana", BancoEspanaMacroProvider),
         ("us_treasury", UsTreasuryMacroProvider),
+        ("sec_edgar", SecEdgarMacroProvider),
     ],
 )
 def test_macro_sources_are_registered(name: str, cls: type) -> None:
     assert isinstance(bootstrap.build_download_service("yahoo", name).macro_provider, cls)
+
+
+def test_document_providers_are_registered() -> None:
+    assert isinstance(bootstrap.build_document_provider("CNMV"), CnmvDocumentProvider)
+    assert isinstance(bootstrap.build_document_provider("esma"), EsmaDocumentProvider)
+    with pytest.raises(ConfigurationError, match="documentos"):
+        bootstrap.build_document_provider("sec")
 
 
 def test_macro_source_can_be_disabled() -> None:

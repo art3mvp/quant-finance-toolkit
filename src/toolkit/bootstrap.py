@@ -2,7 +2,7 @@
 
 Aquí se carga la configuración (``.env``), se eligen los proveedores por nombre y se
 inyectan en el ``DownloadService``. Añadir una fuente nueva es registrar una fábrica
-en ``PRICE_PROVIDERS`` o ``MACRO_PROVIDERS``::
+en ``PRICE_PROVIDERS``, ``MACRO_PROVIDERS`` o ``DOCUMENT_PROVIDERS``::
 
     PRICE_PROVIDERS["alphavantage"] = lambda: AlphaVantagePriceProvider(
         api_key=os.getenv("ALPHAVANTAGE_API_KEY")
@@ -34,10 +34,13 @@ from toolkit.adapters.outbound.macro.world_bank import WorldBankMacroProvider
 from toolkit.adapters.outbound.market.alpha_vantage import AlphaVantagePriceProvider
 from toolkit.adapters.outbound.market.twelve_data import TwelveDataPriceProvider
 from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.regulatory.cnmv import CnmvDocumentProvider
+from toolkit.adapters.outbound.regulatory.esma import EsmaDocumentProvider
+from toolkit.adapters.outbound.regulatory.sec_edgar import SecEdgarMacroProvider
 from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
 from toolkit.domain.errors import ConfigurationError
-from toolkit.ports.outbound import MacroProvider, PriceProvider
+from toolkit.ports.outbound import DocumentProvider, MacroProvider, PriceProvider
 from toolkit.services.download_service import DownloadService
 
 P = TypeVar("P")
@@ -62,6 +65,14 @@ MACRO_PROVIDERS: dict[str, Callable[[], MacroProvider]] = {
     "banco_espana": BancoEspanaMacroProvider,
     "us_treasury": UsTreasuryMacroProvider,  # fiscal: mismo puerto que las series macro
     "eia": lambda: EiaMacroProvider(api_key=os.getenv("EIA_API_KEY")),
+    # regulatory: fundamentales como series univariantes, con as_of = fecha de presentación
+    "sec_edgar": lambda: SecEdgarMacroProvider(user_agent=os.getenv("SEC_USER_AGENT")),
+}
+
+#: Fábricas de proveedores de documentos regulatorios por nombre de fuente.
+DOCUMENT_PROVIDERS: dict[str, Callable[[], DocumentProvider]] = {
+    "cnmv": CnmvDocumentProvider,
+    "esma": EsmaDocumentProvider,
 }
 
 
@@ -100,6 +111,16 @@ def build_download_service(
     )
 
 
+def build_document_provider(source: str = "cnmv") -> DocumentProvider:
+    """Construye el proveedor de documentos ``source`` (ver ``DOCUMENT_PROVIDERS``).
+
+    Raises:
+        ConfigurationError: Si la fuente no está registrada.
+    """
+    load_settings()
+    return _lookup(DOCUMENT_PROVIDERS, source, "documentos")()
+
+
 def _lookup(registry: Mapping[str, Callable[[], P]], name: str, kind: str) -> Callable[[], P]:
     """Busca una fábrica en el registro (sin distinguir mayúsculas)."""
     key = name.strip().lower()
@@ -118,6 +139,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         service_factory=build_download_service,
         price_sources=sorted(PRICE_PROVIDERS),
         macro_sources=sorted(MACRO_PROVIDERS),
+        document_factory=build_document_provider,
+        document_sources=sorted(DOCUMENT_PROVIDERS),
     )
 
 

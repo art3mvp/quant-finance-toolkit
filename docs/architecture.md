@@ -46,7 +46,7 @@ flowchart LR
 
 | Capa | Paquete | Responsabilidad | Puede importar |
 |------|---------|-----------------|----------------|
-| Dominio | `toolkit.domain` | Modelos (`PriceSeries`, `MacroSeries`, peticiones, `DownloadResult`), errores, `Portfolio`. Validación de esquema y estadísticos. | stdlib, `pandas`, `numpy` |
+| Dominio | `toolkit.domain` | Modelos (`PriceSeries`, `MacroSeries`, peticiones, `DownloadResult`), errores, `Portfolio`. Validación de esquema y estadísticos. | stdlib, `pandas`, `numpy`, `matplotlib` (solo visualización: `plots_report()` y Monte Carlo, requeridos como métodos de `Portfolio` por el enunciado) |
 | Puertos | `toolkit.ports` | Contratos (`Protocol`): `DownloadData` (inbound), `PriceProvider` y `MacroProvider` (outbound). | `domain` |
 | Servicios | `toolkit.services` | Casos de uso: `DownloadService` (descarga en lote, paralelismo, tolerancia a fallos). | `domain`, `ports` |
 | Adaptadores | `toolkit.adapters` | Traducción con el exterior: CLI (inbound); Yahoo y FRED (outbound). Los fakes viven en `tests/`. | `domain`, `ports` y librerías externas; **nunca otro adaptador** |

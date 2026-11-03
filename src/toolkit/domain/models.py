@@ -32,6 +32,7 @@ class AssetType(str, Enum):
 
     EQUITY = "equity"
     INDEX = "index"
+    CRYPTO = "crypto"  # cotiza 24/7: su calendario difiere del bursátil
 
 
 class Frequency(str, Enum):

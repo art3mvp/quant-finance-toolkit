@@ -6,6 +6,7 @@ import pytest
 
 from tests.fakes import FakeMacroProvider, FakePriceProvider
 from toolkit import bootstrap
+from toolkit.adapters.outbound.fiscal.us_treasury import UsTreasuryMacroProvider
 from toolkit.adapters.outbound.macro.banco_espana import BancoEspanaMacroProvider
 from toolkit.adapters.outbound.macro.bis import BisMacroProvider
 from toolkit.adapters.outbound.macro.ecb import EcbMacroProvider
@@ -75,6 +76,7 @@ def test_market_sources_are_registered(name: str, cls: type) -> None:
         ("bis", BisMacroProvider),
         ("world_bank", WorldBankMacroProvider),
         ("banco_espana", BancoEspanaMacroProvider),
+        ("us_treasury", UsTreasuryMacroProvider),
     ],
 )
 def test_macro_sources_are_registered(name: str, cls: type) -> None:

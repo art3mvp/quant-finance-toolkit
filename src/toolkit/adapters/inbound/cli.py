@@ -194,7 +194,7 @@ def _print_macro(result: DownloadResult[MacroSeries], out: TextIO) -> None:
     for sid, s in result.series.items():
         print(
             f"{sid:<{width}}{s.frequency.value:<10}{s.n_obs:>7}  {s.start!s:<11}{s.end!s:<11}"
-            f"{s.mean:>14.4f}{s.std:>12.4f}  {s.vintage or '-'}",
+            f"{s.mean:>14.6g}{s.std:>12.6g}  {s.vintage or '-'}",  # g: magnitudes de 1e-3 a 1e13
             file=out,
         )
 

@@ -74,14 +74,16 @@ def imported_modules(source: str, module: str, is_package: bool) -> set[str]:
 
 
 def _is_allowed_adapter_import(module: str, imported: str) -> bool:
-    """Un adaptador solo importa sus paquetes contenedores o a sí mismo.
+    """Un adaptador solo importa sus paquetes contenedores, a sí mismo o helpers privados.
 
-    Los adaptadores viven en ``toolkit.adapters.<dir>[.<tipo>].<modulo>``.
+    Los adaptadores viven en ``toolkit.adapters.<dir>[.<tipo>].<modulo>``. Los módulos
+    con prefijo ``_`` (p. ej. ``_http``) son infraestructura compartida, no adaptadores.
     """
     return (
         module == imported
         or module.startswith(imported + ".")  # paquete contenedor
         or imported.startswith(module + ".")  # submódulo propio (p. ej. un __init__)
+        or any(part.startswith("_") for part in imported.split(".")[2:])
     )
 
 
@@ -181,6 +183,9 @@ def test_checker_detects_violations(module: str, source: str) -> None:
             "toolkit.bootstrap",
             "from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider",
         ),
+        # Los helpers privados compartidos no cuentan como adaptadores.
+        ("toolkit.adapters.outbound.market.yahoo", "from .._http import HttpClient"),
+        ("toolkit.adapters.outbound.macro.fred", "from toolkit.adapters.outbound._http import X"),
     ],
 )
 def test_checker_accepts_valid_imports(module: str, source: str) -> None:

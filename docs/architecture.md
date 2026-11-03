@@ -31,23 +31,29 @@ flowchart LR
         end
         subgraph MAC["macro/"]
             FRED["FredMacroProvider<br/>(API REST FRED/ALFRED)"]
+            SDMX["Ecb · Eurostat · Bis<br/>(heredan de _sdmx.SdmxMacroProvider)"]
+            WB["WorldBankMacroProvider"]
+            BDE["BancoEspanaMacroProvider"]
         end
         subgraph SPE["specialized/"]
             CG["CoinGeckoPriceProvider<br/>(cripto)"]
             EIA["EiaMacroProvider<br/>(energía)"]
         end
-        HTTP["_http · _prices<br/>(infraestructura común)"]
+        HTTP["_http · _prices · _periods · _sdmx<br/>(infraestructura común)"]
         FAKE["Fake providers<br/>(solo en tests/)"]
     end
 
     CLI --> PIN
     NB -.-> PIN
     POUT -. implementado por .-> MKT
-    POUT -. implementado por .-> FRED
+    POUT -. implementado por .-> MAC
     POUT -. implementado por .-> CG
     POUT -. implementado por .-> EIA
     POUT -. implementado por .-> FAKE
     MKT --> HTTP
+    SDMX --> HTTP
+    WB --> HTTP
+    BDE --> HTTP
     CG --> HTTP
     EIA --> HTTP
 
@@ -120,6 +126,20 @@ Por eso el entry point del paquete es `toolkit.bootstrap:main`.
   propiedades `ok`, `n_success`, `n_failed` y `all_failed`.
 - **Errores**: `ToolkitError` es la base de `InvalidSeriesError`, `InvalidRequestError`,
   `ConfigurationError` y `ProviderError`; de este último deriva `SeriesNotFoundError`.
+
+## Infraestructura común de adaptadores
+
+Los módulos privados `adapters/outbound/_*.py` no son adaptadores: no implementan
+puertos ni hablan con una fuente concreta. Agrupan lo que, si no, se duplicaría en cada
+adaptador:
+
+- `_http`: reintentos, `Retry-After`, ocultación de claves y traducción HTTP → errores de dominio.
+- `_prices`: normalización OHLCV.
+- `_periods`: formatos de periodo y frecuencias.
+- `_sdmx`: base SDMX-CSV. BCE, BIS y Eurostat son subclases de tres líneas.
+
+El test de arquitectura permite importarlos, pero sigue prohibiendo que un adaptador
+importe otro.
 
 ## FRED vs ALFRED
 

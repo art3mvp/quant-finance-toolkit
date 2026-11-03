@@ -7,7 +7,7 @@ ninguna excepción de ``requests`` salga de la capa de adaptadores.
 Mapeo de estados:
     * 2xx → se devuelve el cuerpo.
     * 401/403 → ``ConfigurationError`` (credencial ausente, inválida o sin permisos).
-    * 404 → ``SeriesNotFoundError``.
+    * 404 (o los estados de ``not_found_status``) → ``SeriesNotFoundError``.
     * 429, 5xx y errores de red → reintento; al agotarse, ``ProviderError``.
     * Resto → ``ProviderError``.
 """
@@ -40,6 +40,8 @@ class HttpClient:
         backoff_factor: Espera base del backoff exponencial (``factor * 2**intento``).
         sleep: Función de espera (inyectable en tests).
         secrets: Valores que nunca deben aparecer en mensajes (API keys, tokens).
+        not_found_status: Estados HTTP que significan "identificador inexistente"; algunas
+            APIs usan otros además del 404 (p. ej. el Banco de España responde 412).
     """
 
     def __init__(
@@ -50,6 +52,7 @@ class HttpClient:
         backoff_factor: float = 0.5,
         sleep: Callable[[float], None] = time.sleep,
         secrets: Iterable[str | None] = (),
+        not_found_status: Iterable[int] = (404,),
     ) -> None:
         self.source = source
         self.timeout = timeout
@@ -57,6 +60,7 @@ class HttpClient:
         self.backoff_factor = backoff_factor
         self._sleep = sleep
         self._secrets = tuple(s for s in secrets if s)
+        self._not_found = frozenset(not_found_status)
         self._local = threading.local()  # requests.Session no es thread-safe
 
     def get_json(
@@ -84,10 +88,15 @@ class HttpClient:
         headers: Mapping[str, str] | None = None,
         identifier: str = "",
     ) -> str:
-        """GET que devuelve el cuerpo como texto (CSV, XML...)."""
+        """GET que devuelve el cuerpo como texto (CSV, XML...).
+
+        Sin ``charset`` declarado se decodifica como UTF-8 (``requests`` asumiría
+        ISO-8859-1 para ``text/*`` y rompería los acentos).
+        """
         response = self._request(url, params, headers, identifier)
-        response.encoding = response.encoding or "utf-8"
-        return response.text
+        if "charset" not in response.headers.get("Content-Type", "").lower():
+            response.encoding = "utf-8"
+        return response.text.lstrip("﻿")  # algunos CSV llevan BOM
 
     def redact(self, text: str) -> str:
         """Sustituye cualquier credencial conocida por ``***``."""
@@ -158,8 +167,8 @@ class HttpClient:
             raise ConfigurationError(
                 self._label(identifier, f"HTTP {status}: credencial ausente o rechazada")
             )
-        if status == 404:
-            raise SeriesNotFoundError(self._label(identifier, "no encontrado (HTTP 404)"))
+        if status in self._not_found:
+            raise SeriesNotFoundError(self._label(identifier, f"no encontrado (HTTP {status})"))
         raise ProviderError(self._label(identifier, f"HTTP {status}: {detail}"))
 
     def _label(self, identifier: str, message: str) -> str:

@@ -45,6 +45,13 @@ def test_get_text_returns_body(client: HttpClient) -> None:
 
 
 @responses.activate
+def test_get_text_defaults_to_utf8_and_strips_bom(client: HttpClient) -> None:
+    body = "﻿título,€\n".encode()
+    responses.get(URL, body=body, content_type="text/csv")
+    assert client.get_text(URL) == "título,€\n"
+
+
+@responses.activate
 def test_retries_with_backoff_then_succeeds(client: HttpClient, sleeper: SleepRecorder) -> None:
     responses.get(URL, status=429)
     responses.get(URL, status=503)
@@ -88,6 +95,14 @@ def test_status_mapping(client: HttpClient, status: int, error: type[Exception])
     with pytest.raises(error):
         client.get_json(URL, identifier="X")
     assert len(responses.calls) == 1  # sin reintentos
+
+
+@responses.activate
+def test_custom_not_found_status() -> None:
+    client = HttpClient("demo", not_found_status=(404, 412))
+    responses.get(URL, status=412)
+    with pytest.raises(SeriesNotFoundError, match="412"):
+        client.get_json(URL)
 
 
 @responses.activate

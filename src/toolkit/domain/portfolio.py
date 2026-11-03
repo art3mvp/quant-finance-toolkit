@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -46,48 +47,67 @@ class SimulationResult:
         return float((self.final_values < self.initial_value).mean())
 
 
+@dataclass(frozen=True, eq=False)
 class Portfolio:
     """Cartera de activos con pesos fijos.
 
-    Args:
+    Se valida al crearla y calcula automáticamente los retornos alineados
+    (fechas comunes a todas las series).
+
+    Attributes:
         series: Series de precios normalizadas (de ``DownloadService``).
         weights: Peso de cada activo, indexado por ``PriceSeries.ticker``.
+        returns: Retornos simples por periodo, en las fechas comunes (calculado).
 
     Raises:
         InvalidSeriesError: Si las series o los pesos no son válidos.
     """
 
-    def __init__(self, series: list[PriceSeries], weights: dict[str, float]) -> None:
-        self.series = {s.ticker: s for s in series}
-        self.weights = dict(weights)
+    series: list[PriceSeries]
+    weights: dict[str, float]
+    returns: pd.DataFrame = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "series", list(self.series))
+        object.__setattr__(self, "weights", dict(self.weights))
         self._validate()
-        self.returns = self._aligned_returns()
+        object.__setattr__(self, "returns", self._aligned_returns())
 
     def _validate(self) -> None:
         if not self.series:
             raise InvalidSeriesError("Portfolio: se necesita al menos una serie")
-        if set(self.series) != set(self.weights):
+        tickers = [s.ticker for s in self.series]
+        if len(set(tickers)) != len(tickers):
+            raise InvalidSeriesError("Portfolio: hay tickers duplicados en las series")
+        if set(tickers) != set(self.weights):
             raise InvalidSeriesError(
-                f"Portfolio: los tickers {sorted(self.series)} no coinciden "
+                f"Portfolio: los tickers {sorted(tickers)} no coinciden "
                 f"con los pesos {sorted(self.weights)}"
             )
-        if any(w < 0 for w in self.weights.values()):
-            raise InvalidSeriesError("Portfolio: no se admiten pesos negativos")
+        for ticker, w in self.weights.items():
+            if not isinstance(w, (int, float, np.integer, np.floating)) or isinstance(w, bool):
+                raise InvalidSeriesError(f"Portfolio: el peso de {ticker} no es numérico")
+            if not math.isfinite(w):
+                raise InvalidSeriesError(f"Portfolio: el peso de {ticker} no es finito ({w})")
+            if w < 0:
+                raise InvalidSeriesError("Portfolio: no se admiten pesos negativos")
         total = sum(self.weights.values())
         if abs(total - 1.0) > WEIGHT_TOLERANCE:
             raise InvalidSeriesError(f"Portfolio: los pesos suman {total:.6f}, deben sumar 1")
-        frequencies = {s.frequency for s in self.series.values()}
-        if len(frequencies) > 1:
+        if len({s.frequency for s in self.series}) > 1:
             raise InvalidSeriesError("Portfolio: todas las series deben tener la misma frecuencia")
 
     def _aligned_returns(self) -> pd.DataFrame:
         """Retornos de todos los activos, en las fechas comunes."""
-        df = pd.concat(
-            {t: s.returns for t, s in self.series.items()}, axis=1, join="inner"
-        ).dropna()
+        df = pd.concat({s.ticker: s.returns for s in self.series}, axis=1, join="inner").dropna()
         if len(df) < 2:
             raise InvalidSeriesError("Portfolio: menos de 2 fechas comunes entre las series")
         return df
+
+    @property
+    def series_by_ticker(self) -> dict[str, PriceSeries]:
+        """Series indexadas por ticker."""
+        return {s.ticker: s for s in self.series}
 
     @property
     def tickers(self) -> list[str]:
@@ -131,7 +151,8 @@ class Portfolio:
     ) -> SimulationResult:
         """Simula la evolución de la cartera completa.
 
-        Si no se indican ``mu`` y ``sigma`` (por periodo), se estiman de los datos.
+        Si no se indican ``mu`` y ``sigma`` (por periodo), se estiman de los
+        retornos alineados de la cartera.
         """
         mu = self.mean_return if mu is None else mu
         sigma = self.volatility if sigma is None else sigma
@@ -147,12 +168,16 @@ class Portfolio:
         sigma: float | None = None,
         seed: int | None = None,
     ) -> SimulationResult:
-        """Simula un único activo de la cartera, partiendo de su último precio."""
-        if ticker not in self.series:
+        """Simula un único activo de la cartera, partiendo de su último precio.
+
+        Usa los mismos retornos alineados que ``monte_carlo`` (misma muestra),
+        que garantizan al menos 2 observaciones.
+        """
+        if ticker not in self.returns.columns:
             raise InvalidSeriesError(f"Portfolio: el ticker {ticker!r} no está en la cartera")
-        s = self.series[ticker]
-        mu = s.mean_return if mu is None else mu
-        sigma = s.std_return if sigma is None else sigma
-        initial = float(s.prices.iloc[-1])
+        asset_returns = self.returns[ticker]
+        mu = float(asset_returns.mean()) if mu is None else mu
+        sigma = float(asset_returns.std(ddof=1)) if sigma is None else sigma
+        initial = float(self.series_by_ticker[ticker].prices.iloc[-1])
         paths = simulate_gbm(initial, mu, sigma, n_steps, n_simulations, seed)
         return SimulationResult(paths, initial, mu, sigma)

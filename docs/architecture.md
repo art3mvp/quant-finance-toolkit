@@ -116,8 +116,10 @@ muchas series macro (PIB, IPC, empleo) se revisan después de publicarse.
 
 ## Extender el sistema
 
-- **Nueva fuente de datos**: un módulo en `adapters/outbound/` que cumpla `PriceProvider`
-  o `MacroProvider`, más una línea en el registro de `bootstrap.py`. Ver el README.
+- **Nueva fuente de datos**: un módulo en `adapters/outbound/<tipo>/` que cumpla
+  `PriceProvider` o `MacroProvider`, más una línea en el registro de `bootstrap.py`.
+  Los adaptadores se agrupan por tipo de fuente (`market/`, `macro/`...); la agrupación
+  es organizativa: un adaptador sigue sin poder importar otro, aunque sea del mismo tipo.
 - **Nuevo punto de entrada** (API, notebook): un adaptador inbound que dependa solo de
   `DownloadData` y reciba el servicio desde `bootstrap`.
 - **Cartera / Monte Carlo / reportes**: en `domain/portfolio.py` y, si requieren I/O

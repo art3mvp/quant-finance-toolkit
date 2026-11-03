@@ -24,8 +24,8 @@ from typing import TypeVar
 from dotenv import find_dotenv, load_dotenv
 
 from toolkit.adapters.inbound import cli
-from toolkit.adapters.outbound.fred import FredMacroProvider
-from toolkit.adapters.outbound.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
 from toolkit.domain.errors import ConfigurationError
 from toolkit.ports.outbound import MacroProvider, PriceProvider
 from toolkit.services.download_service import DownloadService

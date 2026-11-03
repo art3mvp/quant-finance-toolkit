@@ -143,7 +143,9 @@ ruff check .                # linter
 │   ├── services/               # download_service.py (lote paralelo)
 │   ├── adapters/
 │   │   ├── inbound/cli.py      # argparse
-│   │   └── outbound/           # yahoo.py, fred.py
+│   │   └── outbound/           # un subpaquete por tipo de fuente
+│   │       ├── market/         # yahoo.py
+│   │       └── macro/          # fred.py
 │   └── bootstrap.py            # composition root + entry point
 └── tests/                      # todo el código de test (src solo contiene producción)
     ├── fakes.py                # proveedores sintéticos que implementan los puertos

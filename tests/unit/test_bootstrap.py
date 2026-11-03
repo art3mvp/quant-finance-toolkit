@@ -6,8 +6,8 @@ import pytest
 
 from tests.fakes import FakeMacroProvider, FakePriceProvider
 from toolkit import bootstrap
-from toolkit.adapters.outbound.fred import FredMacroProvider
-from toolkit.adapters.outbound.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
 from toolkit.domain.errors import ConfigurationError
 from toolkit.domain.models import MacroRequest
 

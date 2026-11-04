@@ -71,7 +71,7 @@ def test_404_is_not_found(provider: DemoProvider) -> None:
 
 
 def test_as_of_is_not_supported(provider: DemoProvider) -> None:
-    with pytest.raises(ProviderError, match="vintages"):
+    with pytest.raises(InvalidRequestError, match="vintages"):
         provider.fetch_series("EXR/M.X", None, None, date(2020, 1, 1))
 
 

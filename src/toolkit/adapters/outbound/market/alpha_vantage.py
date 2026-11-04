@@ -22,7 +22,12 @@ import pandas as pd
 from toolkit.adapters.outbound._http import HttpClient
 from toolkit.adapters.outbound._periods import clip
 from toolkit.adapters.outbound._prices import normalize_ohlcv
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 
 DEFAULT_BASE_URL = "https://www.alphavantage.co/query"
@@ -72,16 +77,17 @@ class AlphaVantagePriceProvider:
         """Descarga OHLCV de ``ticker`` y lo recorta a ``[start, end]``.
 
         Raises:
+            InvalidRequestError: Si se pide una frecuencia no soportada (la fuente no la ofrece).
             ConfigurationError: Si falta la API key.
             SeriesNotFoundError: Si el símbolo no existe o no hay datos en el rango.
-            ProviderError: Frecuencia no soportada, límites de la API o formato inválido.
+            ProviderError: Límites de la API o formato inválido.
         """
         if not self._api_key:
             raise ConfigurationError(
                 "Falta ALPHA_VANTAGE_API_KEY (gratis en https://www.alphavantage.co/support/)"
             )
         if interval not in _FUNCTIONS:
-            raise ProviderError(f"alpha_vantage: frecuencia {interval.value} no soportada")
+            raise InvalidRequestError(f"alpha_vantage: frecuencia {interval.value} no soportada")
         function, key = _FUNCTIONS[interval]
         # Orden de la documentación: la clave "demo" solo acepta las URLs de ejemplo.
         params = {"function": function, "symbol": ticker}

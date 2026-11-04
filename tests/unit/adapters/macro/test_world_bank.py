@@ -93,5 +93,5 @@ def test_body_errors(provider: WorldBankMacroProvider) -> None:
 def test_bad_ids_and_as_of(provider: WorldBankMacroProvider) -> None:
     with pytest.raises(InvalidRequestError):
         provider.fetch_series("NY.GDP.MKTP.CD", None, None, None)
-    with pytest.raises(ProviderError, match="vintages"):
+    with pytest.raises(InvalidRequestError, match="vintages"):
         provider.fetch_series("ESP/NY.GDP.MKTP.CD", None, None, date(2020, 1, 1))

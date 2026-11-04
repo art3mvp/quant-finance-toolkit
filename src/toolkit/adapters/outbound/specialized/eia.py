@@ -31,7 +31,12 @@ from toolkit.adapters.outbound._periods import (
     parse_period,
     to_series,
 )
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import Frequency, MacroSeries
 
 DEFAULT_BASE_URL = "https://api.eia.gov/v2"
@@ -67,9 +72,10 @@ class EiaMacroProvider:
         """Descarga ``series_id`` completa (paginando) y la recorta a ``[start, end]``.
 
         Raises:
+            InvalidRequestError: Si se pide ``as_of`` (la fuente no publica vintages).
             ConfigurationError: Si falta la API key o la EIA la rechaza.
             SeriesNotFoundError: Si la serie no existe o no hay datos en el rango.
-            ProviderError: Si se pide ``as_of`` o ante errores HTTP/de formato.
+            ProviderError: Ante errores HTTP/de formato.
         """
         if not self._api_key:
             raise ConfigurationError(
@@ -77,7 +83,7 @@ class EiaMacroProvider:
                 "(gratis en https://www.eia.gov/opendata/register.php)"
             )
         if as_of is not None:
-            raise ProviderError(f"eia: {series_id}: la EIA no publica vintages (as_of)")
+            raise InvalidRequestError(f"eia: {series_id}: la EIA no publica vintages (as_of)")
 
         rows, response = self._fetch_rows(series_id, start)
         data = parse_rows(rows, series_id)

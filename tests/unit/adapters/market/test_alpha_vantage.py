@@ -13,7 +13,12 @@ from toolkit.adapters.outbound.market.alpha_vantage import (
     AlphaVantagePriceProvider,
     parse_time_series,
 )
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 from toolkit.ports.outbound import PriceProvider
 
@@ -91,7 +96,7 @@ def test_missing_key_and_unsupported_frequency(provider: AlphaVantagePriceProvid
         AlphaVantagePriceProvider(api_key="").fetch_prices(
             "IBM", None, None, Frequency.DAILY, AssetType.EQUITY
         )
-    with pytest.raises(ProviderError, match="quarterly"):
+    with pytest.raises(InvalidRequestError, match="quarterly"):
         provider.fetch_prices("IBM", None, None, Frequency.QUARTERLY, AssetType.EQUITY)
 
 

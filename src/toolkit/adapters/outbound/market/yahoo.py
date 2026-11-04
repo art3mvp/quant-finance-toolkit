@@ -19,7 +19,12 @@ import yfinance as yf
 from yfinance.exceptions import YFTickerMissingError
 
 from toolkit.adapters.outbound._prices import normalize_ohlcv
-from toolkit.domain.errors import ProviderError, SeriesNotFoundError, ToolkitError
+from toolkit.domain.errors import (
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+    ToolkitError,
+)
 from toolkit.domain.models import PRICE_COLUMNS, AssetType, Frequency, PriceSeries
 
 logger = logging.getLogger(__name__)
@@ -76,11 +81,12 @@ class YahooPriceProvider:
         envía ``end + 1 día``). Sin fechas se descarga todo el histórico (``period="max"``).
 
         Raises:
+            InvalidRequestError: Si se pide una frecuencia no soportada (la fuente no la ofrece).
             SeriesNotFoundError: Si Yahoo no devuelve datos para el ticker o el rango.
-            ProviderError: Ante cualquier otro error (red, formato, frecuencia no soportada).
+            ProviderError: Ante cualquier otro error (red, formato).
         """
         if interval not in _INTERVALS:
-            raise ProviderError(f"yahoo: frecuencia {interval.value} no soportada")
+            raise InvalidRequestError(f"yahoo: frecuencia {interval.value} no soportada")
         factory = self._ticker_factory or yf.Ticker
         try:
             yf_ticker = factory(ticker)

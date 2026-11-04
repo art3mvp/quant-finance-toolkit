@@ -11,7 +11,7 @@ import pytest
 from yfinance.exceptions import YFPricesMissingError
 
 from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider, normalize_history
-from toolkit.domain.errors import ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import InvalidRequestError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 from toolkit.ports.outbound import PriceProvider
 
@@ -126,7 +126,7 @@ def test_metadata_failure_does_not_break_download(mock_ticker: mock.MagicMock) -
 
 
 def test_annual_frequency_not_supported() -> None:
-    with pytest.raises(ProviderError, match="annual"):
+    with pytest.raises(InvalidRequestError, match="annual"):
         YahooPriceProvider(ticker_factory=mock.MagicMock()).fetch_prices(
             "AAPL", None, None, Frequency.ANNUAL, AssetType.EQUITY
         )

@@ -19,7 +19,7 @@ from typing import Any
 
 from toolkit.adapters.outbound._http import HttpClient
 from toolkit.adapters.outbound._periods import clip, frequency_from_code, to_series
-from toolkit.domain.errors import ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import InvalidRequestError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import MacroSeries
 
 DEFAULT_BASE_URL = "https://app.bde.es/bierest/resources/srdatosapp"
@@ -49,11 +49,14 @@ class BancoEspanaMacroProvider:
         """Descarga el histórico completo de ``series_id`` y lo recorta a ``[start, end]``.
 
         Raises:
+            InvalidRequestError: Si se pide ``as_of`` (la fuente no publica vintages).
             SeriesNotFoundError: Si la serie no existe o no hay datos en el rango.
-            ProviderError: Si se pide ``as_of`` o el formato es inválido.
+            ProviderError: Si el formato es inválido.
         """
         if as_of is not None:
-            raise ProviderError(f"banco_espana: {series_id}: la API no ofrece vintages (as_of)")
+            raise InvalidRequestError(
+                f"banco_espana: {series_id}: la API no ofrece vintages (as_of)"
+            )
         payload = self._http.get_json(
             f"{self.base_url}/listaSeries",
             # idioma primero; los códigos de serie del BdE van en mayúsculas

@@ -50,12 +50,13 @@ class WorldBankMacroProvider:
         """Descarga ``<país>/<indicador>`` y lo recorta a ``[start, end]``.
 
         Raises:
+            InvalidRequestError: Si se pide ``as_of`` (la fuente no publica vintages).
             InvalidRequestError: Si el id no tiene la forma ``país/indicador``.
             SeriesNotFoundError: Si el indicador o país no existe o no hay datos.
-            ProviderError: Si se pide ``as_of`` o el formato es inválido.
+            ProviderError: Si el formato es inválido.
         """
         if as_of is not None:
-            raise ProviderError(f"world_bank: {series_id}: la API no ofrece vintages (as_of)")
+            raise InvalidRequestError(f"world_bank: {series_id}: la API no ofrece vintages (as_of)")
         country, indicator = _split(series_id)
         params: dict[str, Any] = {"format": "json", "per_page": PAGE_SIZE}
         if start is not None or end is not None:

@@ -11,7 +11,7 @@ from toolkit.adapters.outbound.macro.banco_espana import (
     DEFAULT_BASE_URL,
     BancoEspanaMacroProvider,
 )
-from toolkit.domain.errors import ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import InvalidRequestError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import Frequency
 from toolkit.ports.outbound import MacroProvider
 
@@ -69,5 +69,5 @@ def test_malformed_responses(provider: BancoEspanaMacroProvider) -> None:
 
 
 def test_as_of_is_not_supported(provider: BancoEspanaMacroProvider) -> None:
-    with pytest.raises(ProviderError, match="vintages"):
+    with pytest.raises(InvalidRequestError, match="vintages"):
         provider.fetch_series("D_1NBAF472", None, None, date(2020, 1, 1))

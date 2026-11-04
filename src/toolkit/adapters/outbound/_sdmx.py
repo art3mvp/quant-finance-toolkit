@@ -57,13 +57,16 @@ class SdmxMacroProvider:
         """Descarga ``<flujo>/<clave>`` en ``[start, end]``.
 
         Raises:
+            InvalidRequestError: Si se pide ``as_of`` (la fuente no publica vintages).
             InvalidRequestError: Si el id no tiene la forma ``flujo/clave``.
             SeriesNotFoundError: Si no hay datos (404 o CSV vacío).
-            ProviderError: Si se pide ``as_of``, la clave devuelve varias series o el
+            ProviderError: Si la clave devuelve varias series o el
                 formato es inválido.
         """
         if as_of is not None:
-            raise ProviderError(f"{self.name}: {series_id}: la API no ofrece vintages (as_of)")
+            raise InvalidRequestError(
+                f"{self.name}: {series_id}: la API no ofrece vintages (as_of)"
+            )
         flow, key = split_series_id(series_id.upper())  # códigos SDMX en mayúsculas
         params: dict[str, str] = dict(self.FORMAT_PARAMS)
         if start is not None:

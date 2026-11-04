@@ -11,7 +11,12 @@ from responses import matchers
 
 from toolkit.adapters.outbound.specialized import eia
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider, parse_rows
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import Frequency, MacroSeries
 from toolkit.ports.outbound import MacroProvider
 
@@ -92,7 +97,7 @@ def test_missing_api_key_raises_configuration_error() -> None:
 
 
 def test_as_of_is_not_supported(provider: EiaMacroProvider) -> None:
-    with pytest.raises(ProviderError, match="vintages"):
+    with pytest.raises(InvalidRequestError, match="vintages"):
         provider.fetch_series("PET.RWTC.D", None, None, date(2020, 1, 1))
 
 

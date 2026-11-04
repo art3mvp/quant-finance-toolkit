@@ -14,7 +14,12 @@ from toolkit.adapters.outbound.market.twelve_data import (
     TwelveDataPriceProvider,
     parse_time_series,
 )
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 from toolkit.ports.outbound import PriceProvider
 
@@ -102,7 +107,7 @@ def test_missing_key_and_unsupported_frequency(provider: TwelveDataPriceProvider
         TwelveDataPriceProvider(api_key=None).fetch_prices(
             "AAPL", None, None, Frequency.DAILY, AssetType.EQUITY
         )
-    with pytest.raises(ProviderError, match="annual"):
+    with pytest.raises(InvalidRequestError, match="annual"):
         provider.fetch_prices("AAPL", None, None, Frequency.ANNUAL, AssetType.EQUITY)
 
 

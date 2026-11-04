@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pandas as pd
 import pytest
 import responses
 from responses import matchers
@@ -89,6 +90,8 @@ def test_weekly_uses_weekly_function(provider: AlphaVantagePriceProvider) -> Non
     assert "function=TIME_SERIES_WEEKLY" in responses.calls[0].request.url
     assert "outputsize" not in responses.calls[0].request.url
     assert series.frequency is Frequency.WEEKLY
+    # el viernes 05/01 se refecha al lunes de su semana, como Yahoo o CoinGecko
+    assert series.data.index[0] == pd.Timestamp("2024-01-01")
 
 
 def test_missing_key_and_unsupported_frequency(provider: AlphaVantagePriceProvider) -> None:

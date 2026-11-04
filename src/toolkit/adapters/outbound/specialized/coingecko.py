@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._periods import clip
+from toolkit.adapters.outbound._periods import PERIOD_CODES, clip
 from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 
@@ -35,14 +35,6 @@ logger = logging.getLogger(__name__)
 
 _HOSTS = {"demo": "https://api.coingecko.com/api/v3", "pro": "https://pro-api.coingecko.com/api/v3"}
 _DEFAULT_DAYS = 365  # máximo del plan gratuito/demo
-
-#: Periodo de pandas usado para agregar cada frecuencia (semana de lunes a domingo).
-_PERIODS: dict[Frequency, str] = {
-    Frequency.WEEKLY: "W-SUN",
-    Frequency.MONTHLY: "M",
-    Frequency.QUARTERLY: "Q",
-    Frequency.ANNUAL: "Y",
-}
 
 
 class CoinGeckoPriceProvider:
@@ -178,7 +170,7 @@ def resample(data: pd.DataFrame, interval: Frequency) -> pd.DataFrame:
     """Agrega datos diarios a ``interval``: último cierre, suma de volumen, fecha de inicio."""
     if interval is Frequency.DAILY:
         return data
-    periods = data.index.to_period(_PERIODS[interval])
+    periods = data.index.to_period(PERIOD_CODES[interval])
     grouped = data.groupby(periods).agg(
         {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
     )

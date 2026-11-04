@@ -13,6 +13,7 @@ from toolkit.adapters.outbound._periods import (
     frequency_from_code,
     infer_frequency,
     parse_period,
+    to_period_start,
     to_series,
 )
 from toolkit.domain.models import Frequency
@@ -74,3 +75,19 @@ def test_clip_is_inclusive_for_series_and_frames() -> None:
     series = pd.Series([1.0, 2.0, 3.0], index=index)
     assert clip(series, date(2024, 1, 2), date(2024, 1, 2)).tolist() == [2.0]
     assert len(clip(series.to_frame("close"), None, None)) == 3
+
+
+@pytest.mark.parametrize(
+    ("dates", "frequency", "expected"),
+    [
+        (["2024-01-05", "2024-01-12"], Frequency.WEEKLY, ["2024-01-01", "2024-01-08"]),
+        (["2024-01-31", "2024-02-29"], Frequency.MONTHLY, ["2024-01-01", "2024-02-01"]),
+        (["2024-03-29"], Frequency.QUARTERLY, ["2024-01-01"]),
+        (["2024-01-02", "2024-01-03"], Frequency.DAILY, ["2024-01-02", "2024-01-03"]),
+    ],
+)
+def test_to_period_start(dates: list[str], frequency: Frequency, expected: list[str]) -> None:
+    series = pd.Series(1.0, index=pd.DatetimeIndex(dates, name="date"))
+    result = to_period_start(series, frequency)
+    assert result.index.strftime("%Y-%m-%d").tolist() == expected
+    assert to_period_start(result, frequency).index.equals(result.index)  # idempotente

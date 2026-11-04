@@ -19,7 +19,7 @@ from typing import Any
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._periods import clip
+from toolkit.adapters.outbound._periods import clip, to_period_start
 from toolkit.adapters.outbound._prices import normalize_ohlcv
 from toolkit.domain.errors import (
     ConfigurationError,
@@ -95,6 +95,7 @@ class TwelveDataPriceProvider:
         if start is not None and len(data) >= MAX_OUTPUT and data.index[0].date() > start:
             logger.warning("twelve_data: %s truncado a %d barras", ticker, MAX_OUTPUT)
         data = clip(data, start, end)
+        data = to_period_start(data, interval)
         if data.empty:
             raise SeriesNotFoundError(f"twelve_data: {ticker}: sin datos en el rango solicitado")
         return PriceSeries(

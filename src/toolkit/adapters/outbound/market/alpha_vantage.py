@@ -9,18 +9,20 @@ Particularidades (verificadas contra el servicio real):
       inválido) o ``Information``/``Note`` (límite de peticiones, plan o clave).
     * ``outputsize=compact`` devuelve ~100 sesiones; ``full`` todo el histórico. Se pide
       ``full`` solo si ``start`` queda fuera de la ventana compacta.
-    * Las barras semanales y mensuales se fechan en la última sesión del periodo.
+    * Las barras semanales y mensuales llegan fechadas en la última sesión del periodo;
+      se refechan al inicio del periodo, como el resto de fuentes.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._periods import clip
+from toolkit.adapters.outbound._periods import clip, to_period_start
 from toolkit.adapters.outbound._prices import normalize_ohlcv
 from toolkit.domain.errors import (
     ConfigurationError,
@@ -58,7 +60,7 @@ class AlphaVantagePriceProvider:
         self,
         api_key: str | None,
         base_url: str = DEFAULT_BASE_URL,
-        today: Any = date.today,
+        today: Callable[[], date] = date.today,
         **http_options: Any,
     ) -> None:
         self._api_key = api_key.strip() if api_key else None
@@ -96,6 +98,7 @@ class AlphaVantagePriceProvider:
         params["apikey"] = self._api_key
         payload = self._http.get_json(self.base_url, params=params, identifier=ticker)
         data = clip(parse_time_series(payload, key, ticker), start, end)
+        data = to_period_start(data, interval)
         if data.empty:
             raise SeriesNotFoundError(f"alpha_vantage: {ticker}: sin datos en el rango solicitado")
         return PriceSeries(

@@ -117,3 +117,28 @@ def to_series(periods: list[str], values: list[object], name: str) -> pd.Series:
 def clip(data: PandasT, start: date | None, end: date | None) -> PandasT:
     """Recorta ``data`` a ``[start, end]`` (ambos incluidos; ``None`` = sin límite)."""
     return data.loc[pd.Timestamp(start) if start else None : pd.Timestamp(end) if end else None]
+
+
+#: Periodo de pandas de cada frecuencia agregada (semana ISO: de lunes a domingo).
+PERIOD_CODES: dict[Frequency, str] = {
+    Frequency.WEEKLY: "W-SUN",
+    Frequency.MONTHLY: "M",
+    Frequency.QUARTERLY: "Q",
+    Frequency.ANNUAL: "Y",
+}
+
+
+def to_period_start(data: PandasT, frequency: Frequency) -> PandasT:
+    """Refecha cada observación al inicio de su periodo (convención del dominio).
+
+    Las fuentes fechan las barras semanales/mensuales de forma distinta (última sesión,
+    último día del mes...); sin esto, series de fuentes distintas no se alinean. Es
+    idempotente y no toca las series diarias. Si dos filas caen en el mismo periodo, gana
+    la última.
+    """
+    if frequency is Frequency.DAILY or data.empty:
+        return data
+    starts = data.index.to_period(PERIOD_CODES[frequency]).start_time
+    result = data.copy()
+    result.index = pd.DatetimeIndex(starts, name=data.index.name or "date")
+    return result[~result.index.duplicated(keep="last")]

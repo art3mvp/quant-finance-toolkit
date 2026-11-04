@@ -81,7 +81,9 @@ class PriceSeries:
     in-place; crea una nueva ``PriceSeries`` si necesitas transformarlo.
 
     Esquema de ``data``:
-        * Índice ``DatetimeIndex`` ordenado, sin duplicados y tz-naive.
+        * Índice ``DatetimeIndex`` ordenado, sin duplicados y tz-naive. Cada fila se
+          fecha con la sesión (diaria) o con el **inicio** de su periodo (semanal o
+          superior), sea cual sea la fuente: así las series de varias fuentes se alinean.
         * Columnas en minúsculas: ``open, high, low, close, volume`` (obligatorias)
           y ``adj_close`` (opcional). No se admiten columnas adicionales.
         * Todas las columnas numéricas; al menos una observación.
@@ -92,6 +94,9 @@ class PriceSeries:
 
     Los retornos se calculan sobre ``adj_close`` si existe y, si no, sobre ``close``.
     Con menos de dos observaciones ambos estadísticos valen ``nan``.
+
+    Metadatos opcionales: ``name`` y ``currency`` (ISO 4217) valen ``None`` si la fuente
+    no los informa; ``adj_close`` solo existe si la fuente ajusta por dividendos y splits.
     """
 
     ticker: str
@@ -188,6 +193,13 @@ class MacroSeries:
 
     ``data`` es una ``pd.Series`` de valores float (se admiten ``NaN`` para huecos)
     con índice ``DatetimeIndex`` ordenado, único y tz-naive. Se trata como inmutable.
+    Cada observación se fecha con el **inicio** de su periodo (como FRED). Excepción
+    documentada: los fundamentales contables (``sec_edgar``) usan la fecha de cierre,
+    porque los ejercicios fiscales no coinciden con el calendario.
+
+    Metadatos: ``name`` es el título legible de la fuente y ``units`` su unidad tal como
+    la publica (texto como ``"Percent"`` o código como ``"PC_ACT"``); ambos son
+    informativos y pueden ser ``None``.
 
     Si ``vintage`` está informado, la serie refleja los datos tal como se publicaron
     en esa fecha (modo ALFRED), lo que evita el sesgo de anticipación (look-ahead bias).

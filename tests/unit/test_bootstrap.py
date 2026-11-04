@@ -87,11 +87,17 @@ def test_macro_sources_are_registered(name: str, cls: type) -> None:
     assert isinstance(bootstrap.build_download_service("yahoo", name).macro_provider, cls)
 
 
-def test_document_providers_are_registered() -> None:
-    assert isinstance(bootstrap.build_document_provider("CNMV"), CnmvDocumentProvider)
-    assert isinstance(bootstrap.build_document_provider("esma"), EsmaDocumentProvider)
+def test_document_services_wrap_registered_providers() -> None:
+    assert isinstance(bootstrap.build_document_service("CNMV").provider, CnmvDocumentProvider)
+    assert isinstance(bootstrap.build_document_service("esma").provider, EsmaDocumentProvider)
     with pytest.raises(ConfigurationError, match="documentos"):
-        bootstrap.build_document_provider("sec")
+        bootstrap.build_document_service("sec")
+
+
+def test_macro_only_service_builds_no_price_provider() -> None:
+    service = bootstrap.build_download_service(None, "ecb")
+    assert service.price_provider is None
+    assert isinstance(service.macro_provider, EcbMacroProvider)
 
 
 def test_macro_source_can_be_disabled() -> None:

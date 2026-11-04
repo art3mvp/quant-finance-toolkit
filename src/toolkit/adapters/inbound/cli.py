@@ -1,10 +1,12 @@
 """Adaptador inbound de línea de comandos (argparse).
 
-Traduce argumentos de consola a peticiones del dominio (``DownloadRequest`` /
-``MacroRequest``), invoca el puerto ``DownloadData`` y presenta el resultado.
+Traduce argumentos de consola a peticiones del dominio (``DownloadRequest``,
+``MacroRequest``, ``DocumentRequest``), invoca los puertos inbound ``DownloadData`` y
+``ListDocuments`` y presenta el resultado.
 
-No conoce adaptadores ni servicios concretos: recibe una ``service_factory`` desde el
-composition root (``toolkit.bootstrap.main``).
+No conoce adaptadores, servicios ni nombres de fuentes: las fábricas, las fuentes
+disponibles y las de por defecto llegan desde el composition root
+(``toolkit.bootstrap.main``).
 
 Ejemplos::
 
@@ -12,8 +14,8 @@ Ejemplos::
     toolkit macro CPIAUCSL DGS10 --start 2000-01-01 --as-of 2015-06-30
     toolkit docs --source cnmv --query indra
 
-Códigos de salida: 0 si al menos una serie se descarga; 1 si fallan todas;
-2 ante errores de uso o configuración.
+Códigos de salida: 0 si se obtiene al menos una serie o documento; 1 si fallan todas
+o la fuente falla; 2 ante errores de uso o configuración.
 """
 
 from __future__ import annotations
@@ -31,8 +33,8 @@ from typing import Any, TextIO
 
 import pandas as pd
 
-from toolkit.domain.documents import RegulatoryDocument
-from toolkit.domain.errors import ToolkitError
+from toolkit.domain.documents import DocumentRequest, RegulatoryDocument
+from toolkit.domain.errors import ConfigurationError, ProviderError, ToolkitError
 from toolkit.domain.models import (
     AssetType,
     DownloadRequest,
@@ -42,13 +44,14 @@ from toolkit.domain.models import (
     MacroSeries,
     PriceSeries,
 )
-from toolkit.ports.inbound import DownloadData
-from toolkit.ports.outbound import DocumentProvider
+from toolkit.ports.inbound import DownloadData, ListDocuments
 
-#: Fábrica inyectada: (fuente de precios, fuente macro | None, max_workers) -> DownloadData.
-ServiceFactory = Callable[[str, str | None, int], DownloadData]
-#: Fábrica inyectada: nombre de la fuente -> DocumentProvider.
-DocumentFactory = Callable[[str], DocumentProvider]
+#: Fábrica inyectada: (fuente de precios | None, fuente macro | None, workers) -> caso de uso.
+ServiceFactory = Callable[[str | None, str | None, int], DownloadData]
+#: Fábrica inyectada: nombre de la fuente de documentos -> caso de uso.
+DocumentFactory = Callable[[str], ListDocuments]
+
+_PARQUET_HINT = 'Parquet requiere pyarrow: pip install -e ".[parquet]" (o usa --format csv)'
 
 EXIT_OK = 0
 EXIT_ALL_FAILED = 1
@@ -63,12 +66,25 @@ def _iso_date(value: str) -> date:
         raise argparse.ArgumentTypeError(f"fecha inválida {value!r}; usa YYYY-MM-DD") from None
 
 
+def _positive_int(value: str) -> int:
+    """Tipo de argparse para enteros ``>= 1`` (``--workers``, ``--limit``)."""
+    try:
+        number = int(value)
+    except ValueError:
+        number = 0
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"debe ser un entero >= 1, no {value!r}")
+    return number
+
+
 def build_parser(
     price_sources: Sequence[str],
     macro_sources: Sequence[str],
     document_sources: Sequence[str] = (),
+    default_price_source: str | None = None,
+    default_macro_source: str | None = None,
 ) -> argparse.ArgumentParser:
-    """Construye el parser de argumentos de la CLI."""
+    """Construye el parser; sin default explícito, ``--source`` usa la primera fuente."""
     parser = argparse.ArgumentParser(
         prog="toolkit",
         description="Toolkit financiero: descarga y estandarización de series de mercado y macro.",
@@ -83,7 +99,7 @@ def build_parser(
     common.add_argument(
         "--format", choices=["csv", "parquet"], default="csv", help="formato de salida (--out)"
     )
-    common.add_argument("--workers", type=int, default=8, help="descargas simultáneas")
+    common.add_argument("--workers", type=_positive_int, default=8, help="descargas simultáneas")
 
     prices = sub.add_parser("prices", parents=[common], help="descarga series de precios OHLCV")
     prices.add_argument("tickers", nargs="+", help="tickers, p. ej. AAPL MSFT ^GSPC")
@@ -100,24 +116,28 @@ def build_parser(
         default=Frequency.DAILY.value,
         help="frecuencia de las observaciones",
     )
-    prices.add_argument("--source", choices=list(price_sources), default="yahoo")
+    prices.add_argument(
+        "--source", choices=list(price_sources), default=default_price_source or price_sources[0]
+    )
 
     macro = sub.add_parser("macro", parents=[common], help="descarga series macroeconómicas")
     macro.add_argument("series_ids", nargs="+", help="ids de serie, p. ej. CPIAUCSL DGS10")
     macro.add_argument(
         "--as-of",
         type=_iso_date,
-        help="vintage: datos tal como se publicaron ese día (fred, sec_edgar)",
+        help="vintage: datos tal como se publicaron ese día (si la fuente lo admite)",
     )
-    macro.add_argument("--source", choices=list(macro_sources), default="fred")
+    macro.add_argument(
+        "--source", choices=list(macro_sources), default=default_macro_source or macro_sources[0]
+    )
 
     if document_sources:
-        docs = sub.add_parser("docs", help="lista documentos regulatorios (CNMV, ESMA...)")
+        docs = sub.add_parser("docs", help="lista documentos regulatorios")
         docs.add_argument("--source", choices=list(document_sources), required=True)
-        docs.add_argument("--query", help="filtro de la fuente: emisor (cnmv), tipo (esma)")
+        docs.add_argument("--query", help="filtro propio de la fuente (emisor, tipo...)")
         docs.add_argument("--start", type=_iso_date, help="publicados desde YYYY-MM-DD")
         docs.add_argument("--end", type=_iso_date, help="publicados hasta YYYY-MM-DD (incluida)")
-        docs.add_argument("--limit", type=int, default=20, help="máximo de documentos")
+        docs.add_argument("--limit", type=_positive_int, default=20, help="máximo de documentos")
     return parser
 
 
@@ -130,6 +150,9 @@ def run(
     stderr: TextIO | None = None,
     document_factory: DocumentFactory | None = None,
     document_sources: Sequence[str] = (),
+    default_price_source: str | None = None,
+    default_macro_source: str | None = None,
+    quiet_loggers: Sequence[str] = (),
 ) -> int:
     """Ejecuta la CLI y devuelve el código de salida.
 
@@ -140,14 +163,20 @@ def run(
         macro_sources: Fuentes macro disponibles (para ``--source``).
         stdout: Flujo de salida (por defecto ``sys.stdout``).
         stderr: Flujo de errores (por defecto ``sys.stderr``).
-        document_factory: Fábrica de proveedores de documentos (activa ``docs``).
+        document_factory: Fábrica del caso de uso ``ListDocuments`` (activa ``docs``).
         document_sources: Fuentes de documentos disponibles (para ``docs --source``).
+        default_price_source: ``--source`` por defecto de ``prices``.
+        default_macro_source: ``--source`` por defecto de ``macro``.
+        quiet_loggers: Loggers de librerías de terceros a silenciar sin ``-v``.
     """
     out = stdout or sys.stdout
     err = stderr or sys.stderr
     sources = document_sources if document_factory is not None else ()
-    args = build_parser(price_sources, macro_sources, sources).parse_args(argv)
-    _configure_logging(args.verbose)
+    parser = build_parser(
+        price_sources, macro_sources, sources, default_price_source, default_macro_source
+    )
+    args = parser.parse_args(argv)
+    _configure_logging(args.verbose, quiet_loggers)
     if args.command == "docs" and document_factory is not None:
         return _run_docs(args, document_factory, out, err)
 
@@ -168,7 +197,7 @@ def run(
             )
             _print_prices(result, out)
         else:
-            service = service_factory("yahoo", args.source, args.workers)
+            service = service_factory(None, args.source, args.workers)
             result = service.download_macro(
                 MacroRequest(
                     series_ids=args.series_ids,
@@ -190,17 +219,13 @@ def run(
 
 
 def _run_docs(args: argparse.Namespace, factory: DocumentFactory, out: TextIO, err: TextIO) -> int:
-    """Subcomando ``docs``: lista documentos; 1 si no hay ninguno, 2 ante errores."""
-    if args.limit < 1:
-        print("error: --limit debe ser >= 1", file=err)
-        return EXIT_USAGE
-    if args.start and args.end and args.start > args.end:
-        print("error: --start no puede ser posterior a --end", file=err)
-        return EXIT_USAGE
+    """Subcomando ``docs``: 1 si no hay documentos o la fuente falla; 2 si es de uso."""
     try:
-        documents = factory(args.source).fetch_documents(
-            args.query, args.start, args.end, args.limit
-        )
+        request = DocumentRequest(args.query, args.start, args.end, args.limit)
+        documents = factory(args.source).list_documents(request)
+    except (ProviderError, ConfigurationError) as exc:
+        print(f"error: {exc}", file=err)
+        return EXIT_USAGE if isinstance(exc, ConfigurationError) else EXIT_ALL_FAILED
     except ToolkitError as exc:
         print(f"error: {exc}", file=err)
         return EXIT_USAGE
@@ -272,7 +297,7 @@ def save_result(
     """Guarda cada serie del resultado en ``out_dir`` como CSV o Parquet.
 
     Raises:
-        ToolkitError: Si se pide Parquet sin tener ``pyarrow`` instalado.
+        ConfigurationError: Si se pide Parquet sin tener ``pyarrow`` instalado.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
@@ -294,12 +319,10 @@ def _require_parquet_engine() -> None:
     """Comprueba que ``pyarrow`` esté instalado.
 
     Raises:
-        ToolkitError: Si no está disponible.
+        ConfigurationError: Si no está disponible.
     """
     if importlib.util.find_spec("pyarrow") is None:
-        raise ToolkitError(
-            'Parquet requiere pyarrow: pip install -e ".[parquet]" (o usa --format csv)'
-        )
+        raise ConfigurationError(_PARQUET_HINT)
 
 
 def _write(frame: pd.DataFrame, path: Path, fmt: str) -> None:
@@ -309,17 +332,16 @@ def _write(frame: pd.DataFrame, path: Path, fmt: str) -> None:
     try:
         frame.to_parquet(path)
     except ImportError as exc:
-        raise ToolkitError(
-            'Parquet requiere pyarrow: pip install -e ".[parquet]" (o usa --format csv)'
-        ) from exc
+        raise ConfigurationError(_PARQUET_HINT) from exc
 
 
-def _configure_logging(verbose: bool) -> None:
+def _configure_logging(verbose: bool, quiet_loggers: Sequence[str] = ()) -> None:
     """Configura logging: INFO con ``-v``; si no, solo errores y sin ruido de terceros."""
     logging.basicConfig(
         level=logging.INFO if verbose else logging.ERROR,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     if not verbose:
-        logging.getLogger("yfinance").setLevel(logging.CRITICAL)
-        warnings.filterwarnings("ignore", module="yfinance")
+        for name in quiet_loggers:
+            logging.getLogger(name).setLevel(logging.CRITICAL)
+            warnings.filterwarnings("ignore", module=name)

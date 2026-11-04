@@ -1,11 +1,12 @@
 """Composition root: el único módulo que conoce los adaptadores concretos.
 
 Aquí se carga la configuración (``.env``), se eligen los proveedores por nombre y se
-inyectan en el ``DownloadService``. Añadir una fuente nueva es registrar una fábrica
-en ``PRICE_PROVIDERS``, ``MACRO_PROVIDERS`` o ``DOCUMENT_PROVIDERS``::
+inyectan en los servicios (``DownloadService``, ``DocumentService``). Añadir una fuente
+nueva es registrar una fábrica en ``PRICE_PROVIDERS``, ``MACRO_PROVIDERS`` o
+``DOCUMENT_PROVIDERS``::
 
-    PRICE_PROVIDERS["alphavantage"] = lambda: AlphaVantagePriceProvider(
-        api_key=os.getenv("ALPHAVANTAGE_API_KEY")
+    PRICE_PROVIDERS["alpha_vantage"] = lambda: AlphaVantagePriceProvider(
+        api_key=os.getenv("ALPHA_VANTAGE_API_KEY")
     )
 
 Uso desde Python::
@@ -13,6 +14,8 @@ Uso desde Python::
     from toolkit.bootstrap import build_download_service
     service = build_download_service()                 # yahoo + fred
     service = build_download_service("yahoo", None)    # solo precios
+    service = build_download_service(None, "ecb")      # solo macro
+    docs = build_document_service("cnmv")
 """
 
 from __future__ import annotations
@@ -41,9 +44,14 @@ from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvid
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
 from toolkit.domain.errors import ConfigurationError
 from toolkit.ports.outbound import DocumentProvider, MacroProvider, PriceProvider
+from toolkit.services.document_service import DocumentService
 from toolkit.services.download_service import DownloadService
 
 P = TypeVar("P")
+
+#: Fuentes usadas cuando no se indica ninguna (sin clave, salvo FRED).
+DEFAULT_PRICE_SOURCE = "yahoo"
+DEFAULT_MACRO_SOURCE = "fred"
 
 #: Fábricas de proveedores de precios por nombre de fuente.
 PRICE_PROVIDERS: dict[str, Callable[[], PriceProvider]] = {
@@ -85,14 +93,14 @@ def load_settings() -> None:
 
 
 def build_download_service(
-    price_source: str = "yahoo",
-    macro_source: str | None = "fred",
+    price_source: str | None = DEFAULT_PRICE_SOURCE,
+    macro_source: str | None = DEFAULT_MACRO_SOURCE,
     max_workers: int = 8,
 ) -> DownloadService:
     """Construye un ``DownloadService`` con los proveedores indicados.
 
     Args:
-        price_source: Nombre de la fuente de precios (ver ``PRICE_PROVIDERS``).
+        price_source: Nombre de la fuente de precios (ver ``PRICE_PROVIDERS``) o ``None``.
         macro_source: Nombre de la fuente macro (ver ``MACRO_PROVIDERS``) o ``None``.
         max_workers: Descargas simultáneas.
 
@@ -100,25 +108,28 @@ def build_download_service(
         ConfigurationError: Si alguna fuente no está registrada.
     """
     load_settings()
-    price_factory = _lookup(PRICE_PROVIDERS, price_source, "precios")
-    macro_provider = (
-        _lookup(MACRO_PROVIDERS, macro_source, "macro")() if macro_source is not None else None
-    )
+    price_provider = _build(PRICE_PROVIDERS, price_source, "precios")
+    macro_provider = _build(MACRO_PROVIDERS, macro_source, "macro")
     return DownloadService(
-        price_provider=price_factory(),
+        price_provider=price_provider,
         macro_provider=macro_provider,
         max_workers=max_workers,
     )
 
 
-def build_document_provider(source: str = "cnmv") -> DocumentProvider:
-    """Construye el proveedor de documentos ``source`` (ver ``DOCUMENT_PROVIDERS``).
+def build_document_service(source: str = "cnmv") -> DocumentService:
+    """Construye el caso de uso ``ListDocuments`` sobre la fuente ``source``.
 
     Raises:
         ConfigurationError: Si la fuente no está registrada.
     """
     load_settings()
-    return _lookup(DOCUMENT_PROVIDERS, source, "documentos")()
+    return DocumentService(_lookup(DOCUMENT_PROVIDERS, source, "documentos")())
+
+
+def _build(registry: Mapping[str, Callable[[], P]], name: str | None, kind: str) -> P | None:
+    """Instancia la fuente ``name`` del registro, o ``None`` si no se pide ninguna."""
+    return _lookup(registry, name, kind)() if name is not None else None
 
 
 def _lookup(registry: Mapping[str, Callable[[], P]], name: str, kind: str) -> Callable[[], P]:
@@ -133,14 +144,17 @@ def _lookup(registry: Mapping[str, Callable[[], P]], name: str, kind: str) -> Ca
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Punto de entrada del comando ``toolkit``: inyecta la fábrica del servicio en la CLI."""
+    """Punto de entrada del comando ``toolkit``: inyecta fábricas y fuentes en la CLI."""
     return cli.run(
         argv,
         service_factory=build_download_service,
         price_sources=sorted(PRICE_PROVIDERS),
         macro_sources=sorted(MACRO_PROVIDERS),
-        document_factory=build_document_provider,
+        document_factory=build_document_service,
         document_sources=sorted(DOCUMENT_PROVIDERS),
+        default_price_source=DEFAULT_PRICE_SOURCE,
+        default_macro_source=DEFAULT_MACRO_SOURCE,
+        quiet_loggers=("yfinance",),  # librería de terceros con avisos ruidosos
     )
 
 

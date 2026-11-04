@@ -10,8 +10,9 @@ import pytest
 from tests.unit.adapters.test_cli import Factory
 from toolkit.adapters.inbound.cli import EXIT_ALL_FAILED, EXIT_OK, EXIT_USAGE, run
 from toolkit.domain.documents import RegulatoryDocument
-from toolkit.domain.errors import ProviderError
+from toolkit.domain.errors import ConfigurationError, ProviderError
 from toolkit.ports.outbound import DocumentProvider
+from toolkit.services.document_service import DocumentService
 
 DOC = RegulatoryDocument(
     source="fake",
@@ -25,7 +26,7 @@ DOC = RegulatoryDocument(
 class FakeDocumentProvider:
     name = "fake"
 
-    def __init__(self, documents: list[RegulatoryDocument], fail: bool = False) -> None:
+    def __init__(self, documents: list[RegulatoryDocument], fail: Exception | None = None) -> None:
         self.documents = documents
         self.fail = fail
         self.calls: list[tuple[object, ...]] = []
@@ -35,7 +36,7 @@ class FakeDocumentProvider:
     ) -> list[RegulatoryDocument]:
         self.calls.append((query, start, end, limit))
         if self.fail:
-            raise ProviderError("fake: caído")
+            raise self.fail
         return self.documents[:limit]
 
 
@@ -44,9 +45,11 @@ def invoke(argv: list[str], provider: FakeDocumentProvider) -> tuple[int, str, s
     code = run(
         argv,
         service_factory=Factory(),
+        price_sources=["fake"],
+        macro_sources=["fake"],
         stdout=out,
         stderr=err,
-        document_factory=lambda name: provider,
+        document_factory=lambda name: DocumentService(provider),
         document_sources=["fake"],
     )
     return code, out.getvalue(), err.getvalue()
@@ -73,23 +76,30 @@ def test_no_documents_exits_with_all_failed() -> None:
     assert invoke(["docs", "--source", "fake"], FakeDocumentProvider([]))[0] == EXIT_ALL_FAILED
 
 
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["docs", "--source", "fake", "--limit", "0"],
-        ["docs", "--source", "fake", "--start", "2026-11-03", "--end", "2026-11-01"],
-    ],
-)
-def test_invalid_arguments(argv: list[str]) -> None:
+def test_inverted_range_is_a_usage_error() -> None:
+    argv = ["docs", "--source", "fake", "--start", "2026-11-03", "--end", "2026-11-01"]
     code, _, err = invoke(argv, FakeDocumentProvider([DOC]))
     assert code == EXIT_USAGE
-    assert "error:" in err
+    assert "start" in err
 
 
-def test_provider_errors_are_reported() -> None:
-    code, _, err = invoke(["docs", "--source", "fake"], FakeDocumentProvider([], fail=True))
-    assert code == EXIT_USAGE
-    assert "caído" in err
+def test_non_positive_limit_is_rejected_by_argparse(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        invoke(["docs", "--source", "fake", "--limit", "0"], FakeDocumentProvider([DOC]))
+    assert ">= 1" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (ProviderError("fake: caído"), EXIT_ALL_FAILED),
+        (ConfigurationError("sin clave"), EXIT_USAGE),
+    ],
+)
+def test_source_errors_are_reported(error: Exception, expected: int) -> None:
+    code, _, err = invoke(["docs", "--source", "fake"], FakeDocumentProvider([], fail=error))
+    assert code == expected
+    assert str(error) in err
 
 
 def test_docs_subcommand_hidden_without_factory(capsys: pytest.CaptureFixture[str]) -> None:

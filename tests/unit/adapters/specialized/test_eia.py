@@ -60,6 +60,12 @@ def test_happy_path_filters_range_locally(provider: EiaMacroProvider) -> None:
 
 
 @responses.activate
+def test_lowercase_ids_hit_the_uppercase_route(provider: EiaMacroProvider) -> None:
+    responses.get(URL, json=page([row("2024-01-02", 70.0)], total=1))
+    assert provider.fetch_series("pet.rwtc.d", None, None, None).n_obs == 1
+
+
+@responses.activate
 def test_paginates_until_start_is_covered(
     provider: EiaMacroProvider, monkeypatch: pytest.MonkeyPatch
 ) -> None:

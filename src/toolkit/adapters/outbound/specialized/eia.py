@@ -108,7 +108,7 @@ class EiaMacroProvider:
         offset = 0
         while True:
             payload = self._http.get_json(
-                f"{self.base_url}/seriesid/{series_id}",
+                f"{self.base_url}/seriesid/{series_id.upper()}",  # la ruta distingue mayúsculas
                 params={"api_key": self._api_key, "offset": offset, "length": PAGE_SIZE},
                 identifier=series_id,
             )

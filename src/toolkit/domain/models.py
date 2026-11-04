@@ -10,6 +10,7 @@ Este módulo solo depende de la stdlib, ``pandas`` y ``numpy``.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
@@ -18,7 +19,7 @@ from typing import Generic, TypeVar
 import numpy as np
 import pandas as pd
 
-from toolkit.domain.errors import InvalidSeriesError
+from toolkit.domain.errors import InvalidRequestError, InvalidSeriesError
 
 #: Columnas estándar de una serie de precios, en orden canónico.
 PRICE_COLUMNS: tuple[str, ...] = ("open", "high", "low", "close", "adj_close", "volume")
@@ -252,40 +253,84 @@ class MacroSeries:
         )
 
 
+def _clean_ids(ids: Iterable[str], field_name: str) -> tuple[str, ...]:
+    """Limpia identificadores (``strip``) y elimina duplicados conservando el orden.
+
+    No cambia mayúsculas: hay APIs que las distinguen (SEC, CoinGecko...) y otras que no;
+    normalizarlas es responsabilidad de cada adaptador.
+
+    Raises:
+        InvalidRequestError: Si es un ``str``, está vacía o contiene elementos no válidos.
+    """
+    if isinstance(ids, str):
+        raise InvalidRequestError(f"{field_name} debe ser una lista, no un str")
+    cleaned: list[str] = []
+    for raw in ids:
+        if not isinstance(raw, str) or not raw.strip():
+            raise InvalidRequestError(f"{field_name} contiene un identificador inválido: {raw!r}")
+        if raw.strip() not in cleaned:
+            cleaned.append(raw.strip())
+    if not cleaned:
+        raise InvalidRequestError(f"{field_name} no puede estar vacío")
+    return tuple(cleaned)
+
+
+def _check_range(start: date | None, end: date | None) -> None:
+    """Raises: InvalidRequestError si ``start > end``."""
+    if start is not None and end is not None and start > end:
+        raise InvalidRequestError(f"start ({start}) no puede ser posterior a end ({end})")
+
+
 @dataclass(frozen=True)
 class DownloadRequest:
-    """Petición de descarga de precios para uno o varios tickers.
+    """Petición de descarga de precios para uno o varios tickers (validada al crearla).
 
     Attributes:
-        tickers: Símbolos a descargar (p. ej. ``["AAPL", "^GSPC"]``).
+        tickers: Símbolos a descargar (p. ej. ``["AAPL", "^GSPC"]``). Se guardan como
+            ``tuple`` limpia (``strip``) y sin duplicados, conservando orden y mayúsculas.
         start: Fecha inicial (incluida). ``None`` deja que el proveedor decida.
-        end: Fecha final. ``None`` = hasta el último dato disponible.
+        end: Fecha final (incluida). ``None`` = hasta el último dato disponible.
         interval: Frecuencia deseada de las observaciones.
         asset_type: Tipo de activo que se solicita.
+
+    Raises:
+        InvalidRequestError: Si los tickers o el rango de fechas no son válidos.
     """
 
-    tickers: list[str]
+    tickers: Sequence[str]
     start: date | None = None
     end: date | None = None
     interval: Frequency = Frequency.DAILY
     asset_type: AssetType = AssetType.EQUITY
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "tickers", _clean_ids(self.tickers, "tickers"))
+        _check_range(self.start, self.end)
+
 
 @dataclass(frozen=True)
 class MacroRequest:
-    """Petición de descarga de series macroeconómicas.
+    """Petición de descarga de series macroeconómicas (validada al crearla).
 
     Attributes:
-        series_ids: Identificadores de las series (p. ej. ``["CPIAUCSL", "DGS10"]``).
-        start: Fecha inicial de las observaciones.
-        end: Fecha final de las observaciones.
+        series_ids: Identificadores de las series (p. ej. ``["CPIAUCSL", "DGS10"]``),
+            normalizados igual que ``DownloadRequest.tickers``.
+        start: Fecha inicial de las observaciones (incluida).
+        end: Fecha final de las observaciones (incluida).
         as_of: Si se informa, se piden los datos tal como se conocían ese día (ALFRED).
+
+    Raises:
+        InvalidRequestError: Si los ids o el rango de fechas no son válidos.
     """
 
-    series_ids: list[str]
+    series_ids: Sequence[str]
     start: date | None = None
     end: date | None = None
     as_of: date | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "series_ids", _clean_ids(self.series_ids, "series_ids"))
+        _check_range(self.start, self.end)
 
 
 T = TypeVar("T")

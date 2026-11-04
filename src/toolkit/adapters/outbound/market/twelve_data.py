@@ -19,7 +19,8 @@ from typing import Any
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._prices import clip, normalize_ohlcv
+from toolkit.adapters.outbound._periods import clip
+from toolkit.adapters.outbound._prices import normalize_ohlcv
 from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 

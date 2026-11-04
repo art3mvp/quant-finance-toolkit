@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 
 import pandas as pd
 import pytest
 
 from toolkit.adapters.outbound._periods import (
+    clip,
     frequency_from_code,
     infer_frequency,
     parse_period,
@@ -65,3 +67,10 @@ def test_to_series_sorts_dedups_and_keeps_gaps() -> None:
     assert series.iloc[1] == 3.0
     with pytest.raises(ValueError):
         to_series(["2024"], ["abc"], "X")
+
+
+def test_clip_is_inclusive_for_series_and_frames() -> None:
+    index = pd.date_range("2024-01-01", periods=3, freq="D")
+    series = pd.Series([1.0, 2.0, 3.0], index=index)
+    assert clip(series, date(2024, 1, 2), date(2024, 1, 2)).tolist() == [2.0]
+    assert len(clip(series.to_frame("close"), None, None)) == 3

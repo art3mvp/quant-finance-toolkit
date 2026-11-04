@@ -17,10 +17,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-import pandas as pd
-
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._periods import FREQUENCY_CODES, to_series
+from toolkit.adapters.outbound._periods import FREQUENCY_CODES, clip, to_series
 from toolkit.domain.errors import InvalidRequestError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import MacroSeries
 
@@ -70,7 +68,7 @@ class WorldBankMacroProvider:
             data = to_series(periods, [r.get("value") for r in rows], series_id)
         except (KeyError, ValueError, TypeError) as exc:
             raise ProviderError(f"world_bank: {series_id}: observaciones inválidas: {exc}") from exc
-        data = data.loc[pd.Timestamp(start) if start else None : pd.Timestamp(end) if end else None]
+        data = clip(data, start, end)
         if data.dropna().empty:
             raise SeriesNotFoundError(f"world_bank: {series_id}: sin datos en el rango solicitado")
         first = rows[0]

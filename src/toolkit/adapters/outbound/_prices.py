@@ -1,25 +1,25 @@
 """Normalización OHLCV común a los adaptadores de precios basados en REST.
 
 No es un adaptador: deja un ``DataFrame`` con el esquema de ``PriceSeries`` (índice
-tz-naive ordenado y único, columnas ``open, high, low, close, volume`` en float).
+tz-naive ordenado y único, columnas ``open, high, low, close, volume`` en float y
+``adj_close`` si la fuente la ofrece).
 """
 
 from __future__ import annotations
 
 import math
-from datetime import date
 
 import pandas as pd
 
 from toolkit.domain.errors import ProviderError, SeriesNotFoundError
-
-OHLCV: tuple[str, ...] = ("open", "high", "low", "close", "volume")
+from toolkit.domain.models import PRICE_COLUMNS, REQUIRED_PRICE_COLUMNS
 
 
 def normalize_ohlcv(frame: pd.DataFrame, source: str, identifier: str) -> pd.DataFrame:
     """Convierte ``frame`` (índice de fechas, columnas OHLCV) al esquema estándar.
 
-    * Columnas ausentes (p. ej. ``volume`` en índices) se crean a ``NaN``.
+    * Columnas obligatorias ausentes (p. ej. ``volume`` en índices) se crean a ``NaN``;
+      ``adj_close`` se conserva solo si viene en ``frame``.
     * Valores no numéricos → ``ProviderError``; filas sin ``close`` se descartan.
     * Índice tz-naive normalizado a medianoche, ordenado y sin duplicados (último gana).
 
@@ -27,9 +27,13 @@ def normalize_ohlcv(frame: pd.DataFrame, source: str, identifier: str) -> pd.Dat
         ProviderError: Si los valores o fechas no son interpretables.
         SeriesNotFoundError: Si no queda ninguna fila válida.
     """
+    columns = [c for c in PRICE_COLUMNS if c in REQUIRED_PRICE_COLUMNS or c in frame]
     try:
         data = pd.DataFrame(
-            {c: pd.to_numeric(frame[c], errors="raise") if c in frame else math.nan for c in OHLCV},
+            {
+                c: pd.to_numeric(frame[c], errors="raise") if c in frame else math.nan
+                for c in columns
+            },
             index=frame.index,
         ).astype(float)
         index = pd.DatetimeIndex(pd.to_datetime(frame.index))
@@ -43,8 +47,3 @@ def normalize_ohlcv(frame: pd.DataFrame, source: str, identifier: str) -> pd.Dat
     if data.empty:
         raise SeriesNotFoundError(f"{source}: {identifier}: sin precios válidos")
     return data
-
-
-def clip(data: pd.DataFrame, start: date | None, end: date | None) -> pd.DataFrame:
-    """Recorta ``data`` a ``[start, end]`` (ambos incluidos; ``None`` = sin límite)."""
-    return data.loc[pd.Timestamp(start) if start else None : pd.Timestamp(end) if end else None]

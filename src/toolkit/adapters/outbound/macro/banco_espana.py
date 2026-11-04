@@ -17,10 +17,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-import pandas as pd
-
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._periods import frequency_from_code, to_series
+from toolkit.adapters.outbound._periods import clip, frequency_from_code, to_series
 from toolkit.domain.errors import ProviderError, SeriesNotFoundError
 from toolkit.domain.models import MacroSeries
 
@@ -58,7 +56,8 @@ class BancoEspanaMacroProvider:
             raise ProviderError(f"banco_espana: {series_id}: la API no ofrece vintages (as_of)")
         payload = self._http.get_json(
             f"{self.base_url}/listaSeries",
-            {"idioma": "es", "series": series_id, "rango": "MAX"},  # idioma primero
+            # idioma primero; los códigos de serie del BdE van en mayúsculas
+            {"idioma": "es", "series": series_id.upper(), "rango": "MAX"},
             identifier=series_id,
         )
         item = _single_series(payload, series_id)
@@ -68,7 +67,7 @@ class BancoEspanaMacroProvider:
             raise ProviderError(
                 f"banco_espana: {series_id}: observaciones inválidas: {exc}"
             ) from exc
-        data = data.loc[pd.Timestamp(start) if start else None : pd.Timestamp(end) if end else None]
+        data = clip(data, start, end)
         if data.empty:
             raise SeriesNotFoundError(
                 f"banco_espana: {series_id}: sin datos en el rango solicitado"

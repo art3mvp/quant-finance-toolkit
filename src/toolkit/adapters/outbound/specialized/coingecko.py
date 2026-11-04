@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
+from toolkit.adapters.outbound._periods import clip
 from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 
@@ -101,7 +102,7 @@ class CoinGeckoPriceProvider:
             identifier=coin,
         )
         data = parse_market_chart(payload, coin)
-        data = data.loc[pd.Timestamp(start) if start else None : pd.Timestamp(end) if end else None]
+        data = clip(data, start, end)
         if data.empty:
             raise SeriesNotFoundError(f"coingecko: {coin}: sin datos en el rango solicitado")
         return PriceSeries(

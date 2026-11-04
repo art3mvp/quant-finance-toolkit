@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import math
-from datetime import date
 
 import pandas as pd
 import pytest
 
-from toolkit.adapters.outbound._prices import clip, normalize_ohlcv
+from toolkit.adapters.outbound._prices import normalize_ohlcv
 from toolkit.domain.errors import ProviderError, SeriesNotFoundError
 
 
@@ -47,9 +46,13 @@ def test_rejects_garbage_and_empty() -> None:
         normalize_ohlcv(raw(["2024-01-02"], close=[None]), "src", "X")
 
 
-def test_clip_is_inclusive() -> None:
-    data = normalize_ohlcv(
-        raw(["2024-01-01", "2024-01-02", "2024-01-03"], close=[1, 2, 3]), "s", "X"
-    )
-    assert clip(data, date(2024, 1, 2), date(2024, 1, 2))["close"].tolist() == [2.0]
-    assert len(clip(data, None, None)) == 3
+def test_adj_close_is_kept_only_when_present() -> None:
+    frame = raw(["2024-01-02"], open=[1], high=[1], low=[1], close=[2], adj_close=[1.5], volume=[3])
+    assert list(normalize_ohlcv(frame, "src", "X").columns) == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "adj_close",
+        "volume",
+    ]

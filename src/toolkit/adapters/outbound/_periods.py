@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import date
+from typing import TypeVar
 
 import numpy as np
 import pandas as pd
@@ -16,6 +18,9 @@ import pandas as pd
 from toolkit.domain.models import Frequency
 
 logger = logging.getLogger(__name__)
+
+#: ``pd.Series`` o ``pd.DataFrame`` con ``DatetimeIndex``.
+PandasT = TypeVar("PandasT", pd.Series, pd.DataFrame)
 
 #: Códigos de frecuencia SDMX / bancos centrales → ``Frequency``.
 #: ``B`` (días hábiles) es diaria; ``S`` (semestral) se aproxima a anual, como en FRED.
@@ -107,3 +112,8 @@ def to_series(periods: list[str], values: list[object], name: str) -> pd.Series:
     numbers = pd.to_numeric(pd.Series(values, dtype=object), errors="raise")
     series = pd.Series(numbers.to_numpy(dtype=float), index=index, name=name).sort_index()
     return series[~series.index.duplicated(keep="last")]
+
+
+def clip(data: PandasT, start: date | None, end: date | None) -> PandasT:
+    """Recorta ``data`` a ``[start, end]`` (ambos incluidos; ``None`` = sin límite)."""
+    return data.loc[pd.Timestamp(start) if start else None : pd.Timestamp(end) if end else None]

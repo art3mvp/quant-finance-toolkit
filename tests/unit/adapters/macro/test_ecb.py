@@ -41,3 +41,11 @@ def test_fetches_exchange_rate_as_csvdata() -> None:
     assert series.units == "USD"
     assert series.frequency is Frequency.DAILY
     assert series.data.tolist() == pytest.approx([1.0956, 1.0919])
+
+
+@responses.activate
+def test_lowercase_ids_are_uppercased_for_the_api() -> None:
+    responses.get(URL, body=CSV)
+    series = EcbMacroProvider().fetch_series("exr/d.usd.eur.sp00.a", None, None, None)
+    assert series.series_id == "exr/d.usd.eur.sp00.a"  # el id pedido se conserva
+    assert series.n_obs == 2

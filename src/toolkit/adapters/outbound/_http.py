@@ -6,6 +6,9 @@ ninguna excepción de ``requests`` salga de la capa de adaptadores.
 
 Mapeo de estados:
     * 2xx → se devuelve el cuerpo.
+    * ``error_mapper`` (si lo hay) decide primero: para APIs que codifican el motivo en
+      el cuerpo (p. ej. FRED responde 400 tanto si la serie no existe como si la clave
+      es inválida).
     * 401/403 → ``ConfigurationError`` (credencial ausente, inválida o sin permisos).
     * 404 (o los estados de ``not_found_status``) → ``SeriesNotFoundError``.
     * 429, 5xx y errores de red → reintento; al agotarse, ``ProviderError``.
@@ -22,12 +25,21 @@ from typing import Any
 
 import requests
 
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    ConfigurationError,
+    ProviderError,
+    SeriesNotFoundError,
+    ToolkitError,
+)
 
 logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 _MAX_RETRY_AFTER = 60.0  # no se espera más de un minuto aunque el servidor lo pida
+
+#: ``(estado, cuerpo ya sin credenciales) -> error`` o ``None`` para el mapeo estándar.
+#: El mensaje del error se prefija con ``"<fuente>: <id>: "``.
+ErrorMapper = Callable[[int, str], ToolkitError | None]
 
 
 class HttpClient:
@@ -42,6 +54,7 @@ class HttpClient:
         secrets: Valores que nunca deben aparecer en mensajes (API keys, tokens).
         not_found_status: Estados HTTP que significan "identificador inexistente"; algunas
             APIs usan otros además del 404 (p. ej. el Banco de España responde 412).
+        error_mapper: Traducción específica de la fuente para estados no reintentables.
     """
 
     def __init__(
@@ -53,6 +66,7 @@ class HttpClient:
         sleep: Callable[[float], None] = time.sleep,
         secrets: Iterable[str | None] = (),
         not_found_status: Iterable[int] = (404,),
+        error_mapper: ErrorMapper | None = None,
     ) -> None:
         self.source = source
         self.timeout = timeout
@@ -61,6 +75,7 @@ class HttpClient:
         self._sleep = sleep
         self._secrets = tuple(s for s in secrets if s)
         self._not_found = frozenset(not_found_status)
+        self._error_mapper = error_mapper
         self._local = threading.local()  # requests.Session no es thread-safe
 
     def get_json(
@@ -163,6 +178,11 @@ class HttpClient:
         if status in RETRYABLE_STATUS:
             return
         detail = self.redact(response.text[:200].strip())
+        mapped = (
+            self._error_mapper(status, self.redact(response.text)) if self._error_mapper else None
+        )
+        if mapped is not None:
+            raise type(mapped)(self._label(identifier, str(mapped)))
         if status in (401, 403):
             raise ConfigurationError(
                 self._label(identifier, f"HTTP {status}: credencial ausente o rechazada")

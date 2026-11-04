@@ -64,7 +64,7 @@ class SdmxMacroProvider:
         """
         if as_of is not None:
             raise ProviderError(f"{self.name}: {series_id}: la API no ofrece vintages (as_of)")
-        flow, key = split_series_id(series_id)
+        flow, key = split_series_id(series_id.upper())  # códigos SDMX en mayúsculas
         params: dict[str, str] = dict(self.FORMAT_PARAMS)
         if start is not None:
             params["startPeriod"] = start.isoformat()

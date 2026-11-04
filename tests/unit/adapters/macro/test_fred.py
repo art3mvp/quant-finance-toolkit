@@ -193,8 +193,17 @@ def test_rejected_api_key_raises_configuration_error_without_leaking_key(
 
 
 @responses.activate
-def test_other_http_errors_raise_provider_error(provider: FredMacroProvider) -> None:
+def test_forbidden_is_a_configuration_error_like_every_source(
+    provider: FredMacroProvider,
+) -> None:
     responses.get(SERIES_URL, status=403, body="forbidden")
+    with pytest.raises(ConfigurationError):
+        provider.fetch_series("CPIAUCSL", None, None, None)
+
+
+@responses.activate
+def test_other_http_errors_raise_provider_error(provider: FredMacroProvider) -> None:
+    responses.get(SERIES_URL, status=422, body="unprocessable")
     with pytest.raises(ProviderError) as excinfo:
         provider.fetch_series("CPIAUCSL", None, None, None)
     assert not isinstance(excinfo.value, SeriesNotFoundError)

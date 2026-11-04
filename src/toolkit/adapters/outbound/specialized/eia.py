@@ -19,27 +19,23 @@ precios de materias primas sin OHLCV, no activos negociables.
 
 from __future__ import annotations
 
-import re
 from datetime import date
 from typing import Any
 
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
+from toolkit.adapters.outbound._periods import (
+    FREQUENCY_CODES,
+    clip,
+    parse_period,
+    to_series,
+)
 from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import Frequency, MacroSeries
 
 DEFAULT_BASE_URL = "https://api.eia.gov/v2"
 PAGE_SIZE = 5000  # máximo de filas por petición en la API v2
-
-_FREQUENCIES: dict[str, Frequency] = {
-    "daily": Frequency.DAILY,
-    "weekly": Frequency.WEEKLY,
-    "monthly": Frequency.MONTHLY,
-    "quarterly": Frequency.QUARTERLY,
-    "annual": Frequency.ANNUAL,
-}
-_QUARTER = re.compile(r"^(\d{4})-?Q([1-4])$")
 
 
 class EiaMacroProvider:
@@ -85,7 +81,7 @@ class EiaMacroProvider:
 
         rows, response = self._fetch_rows(series_id, start)
         data = parse_rows(rows, series_id)
-        data = data.loc[pd.Timestamp(start) if start else None : pd.Timestamp(end) if end else None]
+        data = clip(data, start, end)
         if data.empty:
             raise SeriesNotFoundError(f"eia: {series_id}: sin datos en el rango solicitado")
         first = rows[0]
@@ -94,9 +90,7 @@ class EiaMacroProvider:
             name=first.get("series-description") or None,
             source=self.name,
             units=first.get("units") or None,
-            frequency=_FREQUENCIES.get(
-                str(response.get("frequency")), _suffix_frequency(series_id)
-            ),
+            frequency=_frequency(response.get("frequency"), series_id),
             data=data,
         )
 
@@ -129,29 +123,15 @@ class EiaMacroProvider:
 def parse_rows(rows: list[dict[str, Any]], series_id: str) -> pd.Series:
     """Convierte las filas ``{period, value}`` en una ``pd.Series`` float ordenada.
 
-    Los ``value`` nulos se conservan como ``NaN``.
+    Los ``value`` nulos se conservan como ``NaN``; el periodo se normaliza a su inicio.
 
     Raises:
         ProviderError: Si algún periodo o valor no es interpretable.
     """
     try:
-        index = pd.DatetimeIndex([parse_period(str(r["period"])) for r in rows], name="date")
-        values = pd.to_numeric(pd.Series([r.get("value") for r in rows]), errors="raise")
+        return to_series([r["period"] for r in rows], [r.get("value") for r in rows], series_id)
     except (KeyError, ValueError, TypeError) as exc:
         raise ProviderError(f"eia: {series_id}: formato de observaciones inválido: {exc}") from exc
-    series = pd.Series(values.to_numpy(dtype=float), index=index, name=series_id).sort_index()
-    return series[~series.index.duplicated(keep="last")]
-
-
-def parse_period(text: str) -> pd.Timestamp:
-    """``2024-01-02`` / ``2024-01`` / ``2024-Q1`` / ``2024`` → inicio del periodo."""
-    quarter = _QUARTER.match(text)
-    if quarter:
-        return pd.Period(f"{quarter[1]}Q{quarter[2]}", freq="Q").start_time
-    formats = {10: "%Y-%m-%d", 7: "%Y-%m", 4: "%Y"}
-    if len(text) not in formats:
-        raise ValueError(f"periodo no reconocido: {text!r}")
-    return pd.to_datetime(text, format=formats[len(text)])
 
 
 def _reached(page: list[dict[str, Any]], start: date | None) -> bool:
@@ -161,8 +141,11 @@ def _reached(page: list[dict[str, Any]], start: date | None) -> bool:
     return parse_period(str(page[-1].get("period"))) < pd.Timestamp(start)
 
 
-def _suffix_frequency(series_id: str) -> Frequency:
-    """Frecuencia por el sufijo del id clásico (``.D``, ``.W``, ``.M``, ``.Q``, ``.A``)."""
-    suffix = series_id.rsplit(".", 1)[-1].upper()
-    by_suffix = {"D": "daily", "W": "weekly", "M": "monthly", "Q": "quarterly", "A": "annual"}
-    return _FREQUENCIES[by_suffix.get(suffix, "daily")]
+def _frequency(name: object, series_id: str) -> Frequency:
+    """Frecuencia de la respuesta (``daily``, ``monthly``...) o, si falta, la del sufijo
+    del id clásico (``.D``, ``.W``, ``.M``, ``.Q``, ``.A``)."""
+    try:
+        return Frequency(str(name))
+    except ValueError:
+        suffix = series_id.rsplit(".", 1)[-1].upper()
+        return FREQUENCY_CODES.get(suffix, Frequency.DAILY)

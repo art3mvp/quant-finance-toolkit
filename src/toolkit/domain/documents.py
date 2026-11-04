@@ -8,9 +8,39 @@ devuelven ``RegulatoryDocument``, con independencia de su formato original (RSS,
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
-from toolkit.domain.errors import InvalidDocumentError
+from toolkit.domain.errors import InvalidDocumentError, InvalidRequestError
+
+
+@dataclass(frozen=True)
+class DocumentRequest:
+    """Petición de listado de documentos regulatorios (validada al crearla).
+
+    Attributes:
+        query: Filtro propio de la fuente (emisor en CNMV, tipo de fichero en ESMA...).
+            Una cadena vacía equivale a ``None``.
+        start: Publicados desde esta fecha (incluida).
+        end: Publicados hasta esta fecha (incluida).
+        limit: Máximo de documentos a devolver (``>= 1``).
+
+    Raises:
+        InvalidRequestError: Si ``limit < 1`` o ``start > end``.
+    """
+
+    query: str | None = None
+    start: date | None = None
+    end: date | None = None
+    limit: int = 20
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "query", (self.query or "").strip() or None)
+        if self.limit < 1:
+            raise InvalidRequestError(f"limit debe ser >= 1 (recibido {self.limit})")
+        if self.start is not None and self.end is not None and self.start > self.end:
+            raise InvalidRequestError(
+                f"start ({self.start}) no puede ser posterior a end ({self.end})"
+            )
 
 
 @dataclass(frozen=True)

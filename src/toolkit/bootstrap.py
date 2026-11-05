@@ -1,7 +1,8 @@
 """Composition root: el único módulo que conoce los adaptadores concretos.
 
 Aquí se carga la configuración (``.env``), se eligen los proveedores por nombre y se
-inyectan en los servicios (``DownloadService``, ``DocumentService``). Añadir una fuente
+inyectan en los servicios (``DownloadService``, ``DocumentService``, ``StorageService``).
+Añadir una fuente
 nueva es registrar una fábrica en ``PRICE_PROVIDERS``, ``MACRO_PROVIDERS`` o
 ``DOCUMENT_PROVIDERS``::
 
@@ -16,12 +17,15 @@ Uso desde Python::
     service = build_download_service("yahoo", None)    # solo precios
     service = build_download_service(None, "ecb")      # solo macro
     docs = build_document_service("cnmv")
+    storage = build_storage_service("data/", "csv")    # StoreSeries sobre ficheros
 """
 
 from __future__ import annotations
 
+import functools
 import os
 from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from typing import TypeVar
 
 from dotenv import find_dotenv, load_dotenv
@@ -42,10 +46,12 @@ from toolkit.adapters.outbound.regulatory.esma import EsmaDocumentProvider
 from toolkit.adapters.outbound.regulatory.sec_edgar import SecEdgarMacroProvider
 from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
+from toolkit.adapters.outbound.storage.files import FileSeriesRepository
 from toolkit.domain.errors import ConfigurationError
 from toolkit.ports.outbound import DocumentProvider, MacroProvider, PriceProvider
 from toolkit.services.document_service import DocumentService
 from toolkit.services.download_service import DownloadService
+from toolkit.services.storage_service import StorageService
 
 P = TypeVar("P")
 
@@ -84,10 +90,13 @@ DOCUMENT_PROVIDERS: dict[str, Callable[[], DocumentProvider]] = {
 }
 
 
+@functools.cache
 def load_settings() -> None:
     """Carga variables de entorno desde ``.env`` (buscando desde el directorio actual).
 
-    Las variables ya definidas en el entorno tienen prioridad sobre el fichero.
+    Se ejecuta una sola vez por proceso, aunque se construyan varios servicios. Las
+    variables ya definidas en el entorno tienen prioridad sobre el fichero; si cambias
+    ``.env`` en un notebook, reinicia el kernel (o llama a ``load_settings.cache_clear()``).
     """
     load_dotenv(find_dotenv(usecwd=True), override=False)
 
@@ -127,6 +136,16 @@ def build_document_service(source: str = "cnmv") -> DocumentService:
     return DocumentService(_lookup(DOCUMENT_PROVIDERS, source, "documentos")())
 
 
+def build_storage_service(directory: str | Path, fmt: str = "csv") -> StorageService:
+    """Construye el caso de uso ``StoreSeries`` sobre ficheros en ``directory``.
+
+    Raises:
+        InvalidRequestError: Si el formato no está admitido.
+        ConfigurationError: Si se pide Parquet sin ``pyarrow``.
+    """
+    return StorageService(FileSeriesRepository(directory, fmt))
+
+
 def _build(registry: Mapping[str, Callable[[], P]], name: str | None, kind: str) -> P | None:
     """Instancia la fuente ``name`` del registro, o ``None`` si no se pide ninguna."""
     return _lookup(registry, name, kind)() if name is not None else None
@@ -152,6 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         macro_sources=sorted(MACRO_PROVIDERS),
         document_factory=build_document_service,
         document_sources=sorted(DOCUMENT_PROVIDERS),
+        storage_factory=build_storage_service,
         default_price_source=DEFAULT_PRICE_SOURCE,
         default_macro_source=DEFAULT_MACRO_SOURCE,
         quiet_loggers=("yfinance",),  # librería de terceros con avisos ruidosos

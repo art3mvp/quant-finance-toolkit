@@ -1,11 +1,13 @@
 """Puertos inbound (driving): los casos de uso que el core ofrece al exterior.
 
-Los adaptadores de entrada (CLI, notebooks, una futura API) dependen de este
-protocolo, no de la implementación concreta (``DownloadService``).
+Los adaptadores de entrada (CLI, notebooks, una futura API) dependen de estos
+protocolos, no de las implementaciones concretas (``DownloadService``,
+``DocumentService``, ``StorageService``).
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
 from toolkit.domain.documents import DocumentRequest, RegulatoryDocument
@@ -54,5 +56,19 @@ class ListDocuments(Protocol):
         Raises:
             ConfigurationError: Si la fuente no está bien configurada.
             ProviderError: Si la fuente falla (red, formato...).
+        """
+        ...
+
+
+@runtime_checkable
+class StoreSeries(Protocol):
+    """Caso de uso: persistir las series descargadas."""
+
+    def store(self, series: Mapping[str, PriceSeries | MacroSeries]) -> list[str]:
+        """Guarda las series y devuelve la ubicación de cada una (lista vacía si no hay).
+
+        Raises:
+            ConfigurationError: Si el destino no está bien configurado.
+            ProviderError: Si falla la escritura.
         """
         ...

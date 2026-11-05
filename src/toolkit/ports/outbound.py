@@ -5,11 +5,12 @@ que satisface estructuralmente uno de estos protocolos. No es necesario heredar 
 ellos: basta con exponer los mismos atributos y métodos (tipado estructural, PEP 544).
 
 Se usa ``typing.Protocol`` con ``@runtime_checkable`` para que ``DownloadService`` pueda
-comprobar con ``isinstance`` que un adaptador cumple el contrato. Ver ADR 0001.
+comprobar con ``isinstance`` que un adaptador cumple el contrato.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date
 from typing import Protocol, runtime_checkable
 
@@ -113,5 +114,26 @@ class DocumentProvider(Protocol):
         Raises:
             ConfigurationError: Si falta configuración necesaria.
             ProviderError: Ante cualquier fallo del proveedor.
+        """
+        ...
+
+
+@runtime_checkable
+class SeriesRepository(Protocol):
+    """Destino donde se persisten series ya normalizadas (ficheros, base de datos...)."""
+
+    def save(self, series: Mapping[str, PriceSeries | MacroSeries]) -> list[str]:
+        """Guarda cada serie bajo su identificador.
+
+        Args:
+            series: Series indexadas por identificador (ticker o id de serie), como
+                ``DownloadResult.series``.
+
+        Returns:
+            La ubicación de cada serie guardada (ruta, URI...), en el mismo orden.
+
+        Raises:
+            ConfigurationError: Si el destino no está disponible o mal configurado.
+            ProviderError: Si falla la escritura.
         """
         ...

@@ -1,12 +1,12 @@
 """Adaptador inbound de línea de comandos (argparse).
 
 Traduce argumentos de consola a peticiones del dominio (``DownloadRequest``,
-``MacroRequest``, ``DocumentRequest``), invoca los puertos inbound ``DownloadData`` y
-``ListDocuments`` y presenta el resultado.
+``MacroRequest``, ``DocumentRequest``), invoca los puertos inbound ``DownloadData``,
+``ListDocuments`` y ``StoreSeries`` y presenta el resultado.
 
-No conoce adaptadores, servicios ni nombres de fuentes: las fábricas, las fuentes
-disponibles y las de por defecto llegan desde el composition root
-(``toolkit.bootstrap.main``).
+No conoce adaptadores, servicios, nombres de fuentes ni cómo se escriben los ficheros: las
+fábricas, las fuentes disponibles y las de por defecto llegan desde el composition root
+(``toolkit.bootstrap.main``). Solo parsea argumentos e imprime.
 
 Ejemplos::
 
@@ -21,17 +21,13 @@ o la fuente falla; 2 ante errores de uso o configuración.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import logging
-import re
 import sys
 import warnings
 from collections.abc import Callable, Sequence
 from datetime import date
 from pathlib import Path
 from typing import Any, TextIO
-
-import pandas as pd
 
 from toolkit.domain.documents import DocumentRequest, RegulatoryDocument
 from toolkit.domain.errors import ConfigurationError, ProviderError, ToolkitError
@@ -44,14 +40,14 @@ from toolkit.domain.models import (
     MacroSeries,
     PriceSeries,
 )
-from toolkit.ports.inbound import DownloadData, ListDocuments
+from toolkit.ports.inbound import DownloadData, ListDocuments, StoreSeries
 
 #: Fábrica inyectada: (fuente de precios | None, fuente macro | None, workers) -> caso de uso.
 ServiceFactory = Callable[[str | None, str | None, int], DownloadData]
 #: Fábrica inyectada: nombre de la fuente de documentos -> caso de uso.
 DocumentFactory = Callable[[str], ListDocuments]
-
-_PARQUET_HINT = 'Parquet requiere pyarrow: pip install -e ".[parquet]" (o usa --format csv)'
+#: Fábrica inyectada: (directorio de ``--out``, formato) -> caso de uso de persistencia.
+StorageFactory = Callable[[Path, str], StoreSeries]
 
 EXIT_OK = 0
 EXIT_ALL_FAILED = 1
@@ -153,6 +149,7 @@ def run(
     default_price_source: str | None = None,
     default_macro_source: str | None = None,
     quiet_loggers: Sequence[str] = (),
+    storage_factory: StorageFactory | None = None,
 ) -> int:
     """Ejecuta la CLI y devuelve el código de salida.
 
@@ -168,6 +165,7 @@ def run(
         default_price_source: ``--source`` por defecto de ``prices``.
         default_macro_source: ``--source`` por defecto de ``macro``.
         quiet_loggers: Loggers de librerías de terceros a silenciar sin ``-v``.
+        storage_factory: Fábrica del caso de uso ``StoreSeries`` (activa ``--out``).
     """
     out = stdout or sys.stdout
     err = stderr or sys.stderr
@@ -182,8 +180,7 @@ def run(
 
     result: DownloadResult[Any]
     try:
-        if args.out is not None and args.format == "parquet":
-            _require_parquet_engine()  # fallar antes de descargar, no después
+        storage = _build_storage(storage_factory, args.out, args.format)  # antes de descargar
         if args.command == "prices":
             service = service_factory(args.source, None, args.workers)
             result = service.download_prices(
@@ -208,14 +205,30 @@ def run(
             )
             _print_macro(result, out)
         _print_errors(result, out)
-        if args.out is not None and result.series:
-            for path in save_result(result, args.out, args.format):
-                print(f"  guardado: {path}", file=out)
+        if storage is not None:
+            for location in storage.store(result.series):
+                print(f"  guardado: {location}", file=out)
     except ToolkitError as exc:
         print(f"error: {exc}", file=err)
         return EXIT_USAGE
 
     return EXIT_ALL_FAILED if result.n_success == 0 else EXIT_OK
+
+
+def _build_storage(
+    factory: StorageFactory | None, out_dir: Path | None, fmt: str
+) -> StoreSeries | None:
+    """Construye el caso de uso de persistencia si se pidió ``--out``.
+
+    Raises:
+        ConfigurationError: Si se pidió ``--out`` sin almacenamiento configurado, o si el
+            destino no es válido (p. ej. Parquet sin ``pyarrow``).
+    """
+    if out_dir is None:
+        return None
+    if factory is None:
+        raise ConfigurationError("--out no está disponible: no hay almacenamiento configurado")
+    return factory(out_dir, fmt)
 
 
 def _run_docs(args: argparse.Namespace, factory: DocumentFactory, out: TextIO, err: TextIO) -> int:
@@ -281,58 +294,7 @@ def _print_errors(result: DownloadResult[object], out: TextIO) -> None:
             print(f"  {identifier}: {message}", file=out)
 
 
-# ---------------------------------------------------------------------- persistencia
-
-
-def _safe_filename(identifier: str) -> str:
-    """Convierte un identificador (p. ej. ``^GSPC``) en un nombre de fichero seguro."""
-    return re.sub(r"[^A-Za-z0-9._-]", "_", identifier)
-
-
-def save_result(
-    result: DownloadResult[PriceSeries] | DownloadResult[MacroSeries],
-    out_dir: Path,
-    fmt: str = "csv",
-) -> list[Path]:
-    """Guarda cada serie del resultado en ``out_dir`` como CSV o Parquet.
-
-    Raises:
-        ConfigurationError: Si se pide Parquet sin tener ``pyarrow`` instalado.
-    """
-    out_dir.mkdir(parents=True, exist_ok=True)
-    paths: list[Path] = []
-    for identifier, series in result.series.items():
-        if isinstance(series, PriceSeries):
-            frame = series.data
-            stem = _safe_filename(identifier)
-        else:
-            frame = series.data.to_frame("value")
-            suffix = f"_asof_{series.vintage.isoformat()}" if series.vintage else ""
-            stem = _safe_filename(identifier) + suffix
-        path = out_dir / f"{stem}.{fmt}"
-        _write(frame, path, fmt)
-        paths.append(path)
-    return paths
-
-
-def _require_parquet_engine() -> None:
-    """Comprueba que ``pyarrow`` esté instalado.
-
-    Raises:
-        ConfigurationError: Si no está disponible.
-    """
-    if importlib.util.find_spec("pyarrow") is None:
-        raise ConfigurationError(_PARQUET_HINT)
-
-
-def _write(frame: pd.DataFrame, path: Path, fmt: str) -> None:
-    if fmt == "csv":
-        frame.to_csv(path, index_label="date")
-        return
-    try:
-        frame.to_parquet(path)
-    except ImportError as exc:
-        raise ConfigurationError(_PARQUET_HINT) from exc
+# ---------------------------------------------------------------------- logging
 
 
 def _configure_logging(verbose: bool, quiet_loggers: Sequence[str] = ()) -> None:

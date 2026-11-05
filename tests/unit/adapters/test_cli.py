@@ -5,13 +5,15 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
-from tests.fakes import FakeMacroProvider, FakePriceProvider
+from tests.fakes import FakeMacroProvider, FakePriceProvider, FakeSeriesRepository
 from toolkit.adapters.inbound.cli import EXIT_ALL_FAILED, EXIT_OK, EXIT_USAGE, run
-from toolkit.ports.inbound import DownloadData
+from toolkit.domain.errors import ConfigurationError
+from toolkit.domain.models import MacroSeries, PriceSeries
+from toolkit.ports.inbound import DownloadData, StoreSeries
 from toolkit.services.download_service import DownloadService
+from toolkit.services.storage_service import StorageService
 
 
 class Factory:
@@ -30,7 +32,24 @@ class Factory:
         return DownloadService(self.price, macro, max_workers=workers)
 
 
-def invoke(argv: list[str], factory: Factory) -> tuple[int, str, str]:
+class StorageFactory:
+    """Fábrica de almacenamiento en memoria que registra ``(directorio, formato)``."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.calls: list[tuple[Path, str]] = []
+        self.repository = FakeSeriesRepository()
+        self.error = error
+
+    def __call__(self, out_dir: Path, fmt: str) -> StoreSeries:
+        self.calls.append((out_dir, fmt))
+        if self.error is not None:
+            raise self.error
+        return StorageService(self.repository)
+
+
+def invoke(
+    argv: list[str], factory: Factory, storage: StorageFactory | None = None
+) -> tuple[int, str, str]:
     out, err = io.StringIO(), io.StringIO()
     code = run(
         argv,
@@ -39,6 +58,7 @@ def invoke(argv: list[str], factory: Factory) -> tuple[int, str, str]:
         macro_sources=["fake", "fred"],
         stdout=out,
         stderr=err,
+        storage_factory=storage,
     )
     return code, out.getvalue(), err.getvalue()
 
@@ -80,20 +100,22 @@ def test_all_failed_returns_non_zero() -> None:
     assert "0 OK, 2 fallidas" in out
 
 
-def test_prices_out_writes_csv(tmp_path: Path) -> None:
+def test_out_stores_series_through_the_use_case(tmp_path: Path) -> None:
+    storage = StorageFactory()
     code, out, _ = invoke(
-        ["prices", "AAPL", "^GSPC", "--source", "fake", "--out", str(tmp_path)], Factory()
+        ["prices", "AAPL", "^GSPC", "--source", "fake", "--out", str(tmp_path)],
+        Factory(),
+        storage,
     )
     assert code == EXIT_OK
-    assert (tmp_path / "AAPL.csv").exists()
-    frame = pd.read_csv(tmp_path / "_GSPC.csv", index_col="date", parse_dates=True)
-    assert list(frame.columns) == ["open", "high", "low", "close", "adj_close", "volume"]
-    assert "guardado" in out
+    assert storage.calls == [(tmp_path, "csv")]
+    assert list(storage.repository.saved) == ["AAPL", "^GSPC"]
+    assert all(isinstance(s, PriceSeries) for s in storage.repository.saved.values())
+    assert "guardado: memory://AAPL" in out
 
 
-def test_macro_with_as_of_and_parquet(tmp_path: Path) -> None:
-    pytest.importorskip("pyarrow")
-    factory = Factory()
+def test_macro_with_as_of_passes_format_and_vintage(tmp_path: Path) -> None:
+    factory, storage = Factory(), StorageFactory()
     code, out, _ = invoke(
         [
             "macro",
@@ -111,13 +133,33 @@ def test_macro_with_as_of_and_parquet(tmp_path: Path) -> None:
             "parquet",
         ],
         factory,
+        storage,
     )
     assert code == EXIT_OK
     assert "2015-06-30" in out
     assert factory.calls[0][:2] == (None, "fake")  # macro no construye fuente de precios
-    frame = pd.read_parquet(tmp_path / "CPIAUCSL_asof_2015-06-30.parquet")
-    assert list(frame.columns) == ["value"]
-    assert frame.index.max() <= pd.Timestamp("2015-06-30")
+    assert storage.calls == [(tmp_path, "parquet")]
+    cpi = storage.repository.saved["CPIAUCSL"]
+    assert isinstance(cpi, MacroSeries)
+    assert cpi.vintage is not None and cpi.vintage.isoformat() == "2015-06-30"
+
+
+def test_without_out_nothing_is_stored() -> None:
+    storage = StorageFactory()
+    code, out, _ = invoke(["prices", "AAPL", "--source", "fake"], Factory(), storage)
+    assert code == EXIT_OK
+    assert storage.calls == []
+    assert "guardado" not in out
+
+
+def test_nothing_is_stored_when_all_fail(tmp_path: Path) -> None:
+    storage = StorageFactory()
+    code, out, _ = invoke(
+        ["prices", "X", "--source", "fake", "--out", str(tmp_path)], Factory(fail_on={"X"}), storage
+    )
+    assert code == EXIT_ALL_FAILED
+    assert storage.repository.saved == {}
+    assert "guardado" not in out
 
 
 def test_invalid_request_returns_usage_code() -> None:
@@ -135,15 +177,22 @@ def test_invalid_date_is_rejected_by_argparse() -> None:
     assert excinfo.value.code == 2
 
 
-def test_parquet_without_pyarrow_fails_before_downloading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("toolkit.adapters.inbound.cli.importlib.util.find_spec", lambda _: None)
+def test_storage_error_fails_before_downloading(tmp_path: Path) -> None:
     factory = Factory()
+    storage = StorageFactory(error=ConfigurationError("Parquet requiere pyarrow"))
     code, _, err = invoke(
         ["prices", "AAPL", "--source", "fake", "--out", str(tmp_path), "--format", "parquet"],
         factory,
+        storage,
     )
     assert code == EXIT_USAGE
     assert "pyarrow" in err
+    assert factory.price.calls == []
+
+
+def test_out_without_storage_configured_is_a_usage_error(tmp_path: Path) -> None:
+    factory = Factory()
+    code, _, err = invoke(["prices", "AAPL", "--source", "fake", "--out", str(tmp_path)], factory)
+    assert code == EXIT_USAGE
+    assert "almacenamiento" in err
     assert factory.price.calls == []

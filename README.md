@@ -28,9 +28,11 @@ aplicada a mercados financieros.
   convención de fechas (inicio del periodo), para que las series de fuentes distintas
   se alineen.
 - Descarga **en lote y en paralelo**: un fallo individual no tumba el lote.
-- **Arquitectura hexagonal**: añadir una fuente nueva no requiere tocar el core.
-  Ver [docs/architecture.md](docs/architecture.md) y el
-  [ADR 0001](docs/adr/0001-arquitectura-hexagonal.md).
+- **Arquitectura hexagonal**: añadir una fuente nueva no requiere tocar el núcleo
+  (resumen en [Cómo está organizado](#cómo-está-organizado); detalle en
+  [docs/architecture.md](docs/architecture.md)).
+- **Notebook de demostración** con datos reales:
+  [notebooks/demo_toolkit.ipynb](notebooks/demo_toolkit.ipynb).
 
 ## Prerrequisitos
 
@@ -223,6 +225,25 @@ from toolkit.bootstrap import build_document_service
 from toolkit.domain.documents import DocumentRequest
 
 docs = build_document_service("esma").list_documents(DocumentRequest("DLTINS", limit=5))
+
+# Guardar lo descargado (CSV o Parquet): devuelve la ruta de cada fichero
+from toolkit.bootstrap import build_storage_service
+
+build_storage_service("data/", "csv").store(result.series)   # data/AAPL.csv, data/_GSPC.csv...
+```
+
+Para análisis de cartera y Monte Carlo:
+
+```python
+from toolkit.domain.portfolio import Portfolio
+
+cartera = Portfolio(
+    series=[result.series["AAPL"], result.series["MSFT"]],
+    weights={"AAPL": 0.6, "MSFT": 0.4},
+)
+cartera.mean_return, cartera.volatility          # por periodo, sin anualizar
+sim = cartera.monte_carlo(n_steps=252, n_simulations=1000, seed=42)
+sim.quantile(0.05), sim.prob_loss                # percentil 5 del valor final y P(pérdida)
 ```
 
 Las peticiones se validan al crearlas: `DownloadRequest(tickers=[])` o un
@@ -237,6 +258,38 @@ from toolkit.services.download_service import DownloadService
 
 service = DownloadService(FakePriceProvider())  # series deterministas, sin red
 ```
+
+### Notebook de demostración
+
+`notebooks/demo_toolkit.ipynb` recorre el toolkit con **datos reales**: precios de
+Yahoo (con un ticker inválido para ver la tolerancia a fallos), series del BCE y del
+Banco Mundial, FRED con y sin vintage, documentos de CNMV y ESMA, una cartera con
+Monte Carlo y el guardado en ficheros. Las celdas que necesitan una clave que no está
+en `.env` se saltan con un aviso.
+
+```bash
+pip install -e ".[dev]" jupyter    # matplotlib viene en [dev]
+jupyter lab notebooks/demo_toolkit.ipynb
+```
+
+## Cómo está organizado
+
+El código sigue una **arquitectura hexagonal**: un núcleo que no sabe de dónde vienen
+los datos ni adónde van, rodeado de adaptadores que traducen cada fuente al mismo
+formato.
+
+| Capa | Carpeta | En una frase |
+|------|---------|--------------|
+| Dominio | `domain/` | Los objetos con los que trabaja todo el mundo (`PriceSeries`, `MacroSeries`, `Portfolio`...), validados al crearse. Sin red, ficheros ni gráficos. |
+| Puertos | `ports/` | Los contratos: qué ofrece el núcleo (`DownloadData`, `ListDocuments`, `StoreSeries`) y qué necesita (`PriceProvider`, `MacroProvider`, `DocumentProvider`, `SeriesRepository`). |
+| Servicios | `services/` | Los casos de uso: descarga en lote en paralelo, listado de documentos y guardado. Solo hablan con puertos. |
+| Adaptadores | `adapters/` | La traducción con el exterior: la CLI (entrada) y las 15 fuentes y el guardado en ficheros (salida). |
+| Composition root | `bootstrap.py` | El único sitio que conoce las clases concretas: lee `.env` y lo conecta todo. |
+
+Las dependencias solo apuntan hacia dentro (adaptadores → puertos → dominio) y un
+test (`tests/unit/test_architecture.py`) lo comprueba en cada ejecución de `pytest`.
+Qué hay en cada capa, la regla completa, el criterio de errores y la convención de
+fechas están en [docs/architecture.md](docs/architecture.md).
 
 ## Tests
 
@@ -253,13 +306,13 @@ ruff check .                # linter
 ├── pyproject.toml              # dependencias, entry point `toolkit`, pytest, ruff
 ├── .env.example                # FRED_API_KEY, EIA_API_KEY, COINGECKO_API_KEY...
 ├── docs/
-│   ├── architecture.md         # capas, regla de dependencias, flujo, diagrama
-│   └── adr/0001-arquitectura-hexagonal.md
-├── notebooks/                  # demo (fase 3)
+│   └── architecture.md         # capas, regla de dependencias, flujo, diagrama
+├── notebooks/
+│   └── demo_toolkit.ipynb      # recorrido con datos reales
 ├── src/toolkit/
-│   ├── domain/                 # CORE: models.py, documents.py, errors.py, portfolio.py
-│   ├── ports/                  # inbound.py (DownloadData, ListDocuments), outbound.py (Price/Macro/DocumentProvider)
-│   ├── services/               # download_service.py (lote paralelo), document_service.py
+│   ├── domain/                 # núcleo: models.py, documents.py, errors.py, portfolio.py, simulation.py
+│   ├── ports/                  # inbound.py (casos de uso), outbound.py (fuentes y SeriesRepository)
+│   ├── services/               # download_service.py, document_service.py, storage_service.py
 │   ├── adapters/
 │   │   ├── inbound/cli.py      # argparse
 │   │   └── outbound/           # un subpaquete por tipo de fuente
@@ -271,7 +324,8 @@ ruff check .                # linter
 │   │       ├── macro/          # fred, ecb, eurostat, bis, world_bank, banco_espana
 │   │       ├── fiscal/         # us_treasury
 │   │       ├── regulatory/     # sec_edgar (series), cnmv y esma (documentos)
-│   │       └── specialized/    # coingecko.py, eia.py
+│   │       ├── specialized/    # coingecko.py, eia.py
+│   │       └── storage/        # files.py: CSV / Parquet
 │   └── bootstrap.py            # composition root + entry point
 └── tests/                      # todo el código de test (src solo contiene producción)
     ├── fakes.py                # proveedores sintéticos que implementan los puertos

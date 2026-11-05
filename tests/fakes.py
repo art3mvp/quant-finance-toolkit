@@ -1,6 +1,7 @@
 """Proveedores fake para tests: series sintéticas deterministas, sin red.
 
-Implementan los puertos ``PriceProvider`` y ``MacroProvider`` y viven fuera de ``src``
+Implementan los puertos ``PriceProvider``, ``MacroProvider`` y ``SeriesRepository`` y viven
+fuera de ``src``
 porque son código de test. Sirven para:
     * Tests unitarios del servicio, la CLI y el composition root.
     * Desarrollar ``Portfolio`` y Monte Carlo sin red (desde la raíz del repo)::
@@ -213,3 +214,14 @@ class FakeMacroProvider(_CallRecorder):
             data=pd.Series(values, index=pd.DatetimeIndex(index, name="date"), name=series_id),
             vintage=as_of,
         )
+
+
+class FakeSeriesRepository:
+    """Repositorio en memoria: guarda las series en ``saved`` y devuelve ``memory://<id>``."""
+
+    def __init__(self) -> None:
+        self.saved: dict[str, PriceSeries | MacroSeries] = {}
+
+    def save(self, series: Mapping[str, PriceSeries | MacroSeries]) -> list[str]:
+        self.saved.update(series)
+        return [f"memory://{identifier}" for identifier in series]

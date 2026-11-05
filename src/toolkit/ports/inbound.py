@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from toolkit.domain.documents import DocumentRequest, RegulatoryDocument
 from toolkit.domain.models import (
     DownloadRequest,
     DownloadResult,
@@ -24,10 +25,11 @@ class DownloadData(Protocol):
     def download_prices(self, request: DownloadRequest) -> DownloadResult[PriceSeries]:
         """Descarga las series de precios de todos los tickers de la petición.
 
-        Un fallo individual no aborta el lote: se registra en ``DownloadResult.errors``.
+        La petición ya llega validada (``DownloadRequest.__post_init__``). Un fallo
+        individual no aborta el lote: se registra en ``DownloadResult.errors``.
 
         Raises:
-            InvalidRequestError: Si la petición es inválida (lista vacía, ``start > end``...).
+            ConfigurationError: Si no hay proveedor de precios o falta su configuración.
         """
         ...
 
@@ -37,7 +39,20 @@ class DownloadData(Protocol):
         Un fallo individual no aborta el lote: se registra en ``DownloadResult.errors``.
 
         Raises:
-            InvalidRequestError: Si la petición es inválida.
             ConfigurationError: Si no hay proveedor macro configurado.
+        """
+        ...
+
+
+@runtime_checkable
+class ListDocuments(Protocol):
+    """Caso de uso: listar documentos regulatorios de una fuente."""
+
+    def list_documents(self, request: DocumentRequest) -> list[RegulatoryDocument]:
+        """Devuelve como mucho ``request.limit`` documentos, del más reciente al más antiguo.
+
+        Raises:
+            ConfigurationError: Si la fuente no está bien configurada.
+            ProviderError: Si la fuente falla (red, formato...).
         """
         ...

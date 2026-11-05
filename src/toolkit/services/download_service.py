@@ -31,7 +31,8 @@ class DownloadService:
     """Orquesta descargas en lote tolerantes a fallos individuales.
 
     Args:
-        price_provider: Adaptador que cumple ``PriceProvider``.
+        price_provider: Adaptador que cumple ``PriceProvider`` (opcional: un servicio solo
+            macro no necesita fuente de precios).
         macro_provider: Adaptador que cumple ``MacroProvider`` (opcional).
         max_workers: Número máximo de descargas simultáneas.
 
@@ -42,11 +43,11 @@ class DownloadService:
 
     def __init__(
         self,
-        price_provider: PriceProvider,
+        price_provider: PriceProvider | None = None,
         macro_provider: MacroProvider | None = None,
         max_workers: int = 8,
     ) -> None:
-        if not isinstance(price_provider, PriceProvider):
+        if price_provider is not None and not isinstance(price_provider, PriceProvider):
             raise TypeError(f"{price_provider!r} no cumple el puerto PriceProvider")
         if macro_provider is not None and not isinstance(macro_provider, MacroProvider):
             raise TypeError(f"{macro_provider!r} no cumple el puerto MacroProvider")
@@ -65,8 +66,10 @@ class DownloadService:
         individual se registra en ``errors`` sin abortar el lote.
 
         Raises:
-            ConfigurationError: Si el proveedor no está bien configurado.
+            ConfigurationError: Si no hay proveedor de precios o no está bien configurado.
         """
+        if self.price_provider is None:
+            raise ConfigurationError("No hay ningún proveedor de precios configurado")
         tickers = request.tickers
         provider = self.price_provider
         logger.info(

@@ -16,6 +16,10 @@ class InvalidSeriesError(ToolkitError):
     """La serie no cumple el esquema estándar (índice, columnas, tipos...)."""
 
 
+class InvalidDocumentError(ToolkitError):
+    """El documento regulatorio no cumple el contrato (campos vacíos, URL, fecha...)."""
+
+
 class ProviderError(ToolkitError):
     """Fallo genérico de un proveedor de datos (red, formato inesperado, límites...)."""
 

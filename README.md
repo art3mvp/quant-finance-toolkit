@@ -18,10 +18,15 @@ aplicada a mercados financieros.
   | macro | Banco Mundial | indicadores por país (PIB, inflación...) | `world_bank` | no |
   | macro | Banco de España | Euríbor, tipos, crédito... | `banco_espana` | no |
   | fiscal | U.S. Treasury Fiscal Data | deuda pública, tipos medios de la deuda... | `us_treasury` | no |
+  | regulatory | SEC EDGAR | fundamentales XBRL *point-in-time* | `sec_edgar` | `SEC_USER_AGENT` |
+  | regulatory | CNMV | hechos relevantes del día (documentos) | `docs --source cnmv` | no |
+  | regulatory | ESMA | ficheros FIRDS publicados (documentos) | `docs --source esma` | no |
   | specialized | CoinGecko | criptoactivos (cierre + volumen) | `coingecko` | opcional |
   | specialized | EIA | energía: WTI, Brent, gas Henry Hub... | `eia` | `EIA_API_KEY` |
-- **Formato estándar** para todas las fuentes (`PriceSeries`, `MacroSeries`) con
-  estadísticos calculados automáticamente.
+- **Formato estándar** para todas las fuentes (`PriceSeries`, `MacroSeries`,
+  `RegulatoryDocument`) con estadísticos calculados automáticamente y una misma
+  convención de fechas (inicio del periodo), para que las series de fuentes distintas
+  se alineen.
 - Descarga **en lote y en paralelo**: un fallo individual no tumba el lote.
 - **Arquitectura hexagonal**: añadir una fuente nueva no requiere tocar el core.
   Ver [docs/architecture.md](docs/architecture.md) y el
@@ -35,6 +40,9 @@ aplicada a mercados financieros.
   - FRED (series macro): <https://fred.stlouisfed.org/docs/api/api_key.html>.
   - EIA (energía): <https://www.eia.gov/opendata/register.php>.
   - CoinGecko funciona sin clave (plan público/demo, histórico de 365 días como máximo).
+  - SEC EDGAR no usa clave, pero exige identificarse: en `.env`,
+    `SEC_USER_AGENT=Nombre Apellido email@dominio.com` (solo el valor, sin
+    `User-Agent:`).
 
 ## Instalación
 
@@ -86,6 +94,14 @@ toolkit macro D_1NBAF472 --source banco_espana --start 2010-01-01           # Eu
 toolkit macro v2/accounting/od/debt_to_penny:tot_pub_debt_out_amt --source us_treasury --start 2020-01-01
 toolkit macro "v2/accounting/od/avg_interest_rates:avg_interest_rate_amt:security_desc=Treasury Bills" --source us_treasury
 
+# Fundamentales (SEC EDGAR): '<ticker|CIK>/[<taxonomía>/]<concepto>[:FY]'
+toolkit macro AAPL/us-gaap/Assets MSFT/NetIncomeLoss --source sec_edgar --start 2018-01-01
+toolkit macro AAPL/Revenues:FY --source sec_edgar --as-of 2020-06-30   # solo lo presentado a esa fecha
+
+# Documentos regulatorios
+toolkit docs --source cnmv --query indra          # hechos relevantes de hoy de un emisor
+toolkit docs --source esma --query DLTINS --start 2026-11-01 --limit 5
+
 # Misma petición, otra fuente de mercado: la salida es la misma PriceSeries
 toolkit prices AAPL MSFT --source twelve_data --start 2024-01-01
 toolkit prices IBM --source alpha_vantage --interval weekly
@@ -99,27 +115,46 @@ toolkit macro PET.RWTC.D PET.RBRTE.D NG.RNGWHHD.M --source eia --start 2020-01-0
 
 Notas sobre las fuentes macro:
 
-- Solo FRED ofrece vintages (`--as-of`). En el resto, pedirlos da un error por serie.
+- Solo FRED y SEC EDGAR admiten `--as-of`. En el resto, pedirlo es una petición
+  inválida y se informa como error de cada serie.
+- Los ids se envían tal como se escriben (solo se quitan espacios y duplicados): cada
+  adaptador decide si su API distingue mayúsculas. `exr/d.usd.eur.sp00.a` y
+  `EXR/D.USD.EUR.SP00.A` piden la misma serie al BCE.
 - BCE, BIS y Eurostat comparten una base SDMX-CSV (`adapters/outbound/_sdmx.py`). La
   clave debe fijar todas las dimensiones: si la consulta devuelve varias series, se
   rechaza en lugar de mezclarlas.
 - Todas las fechas se normalizan al **inicio** del periodo (`2024-Q1` → `2024-01-01`),
   igual que FRED.
 
+Notas sobre las fuentes regulatorias:
+
+- **SEC EDGAR** devuelve `MacroSeries` (una serie univariante por concepto), así que
+  hereda la descarga en lote y la CLI. Con `--as-of` solo usa los datos **presentados**
+  hasta esa fecha: es la versión *point-in-time* de los fundamentales, como ALFRED para la
+  macro. El índice es la fecha de cierre del periodo. La serie trimestral no tiene el
+  4.º trimestre porque la SEC solo publica el dato anual, y no se deriva.
+- **CNMV** y **ESMA** publican documentos, no series. Por eso tienen su propio modelo
+  (`RegulatoryDocument`), sus puertos (`DocumentProvider` y el caso de uso
+  `ListDocuments`) y su servicio, en lugar de forzarlos en `PriceSeries`/`MacroSeries`.
+  El RSS de la CNMV solo incluye lo publicado desde la sesión anterior.
+
 Notas sobre la fuente fiscal:
 
 - `us_treasury` usa el mismo puerto `MacroProvider`: una serie fiscal es una serie
   temporal univariante, como una macro. Se separa en `fiscal/` por tipo de fuente.
 - Los endpoints con varias filas por fecha (p. ej. una por tipo de valor) exigen el
-  filtro `campo=valor`, que no distingue mayúsculas. Las fechas son el `record_date`
-  publicado (p. ej. fin de mes).
+  filtro `campo=valor`, que no distingue mayúsculas. El `record_date` publicado (fin
+  de mes en las series mensuales) se refecha al inicio del periodo, como el resto.
 
 Notas sobre las fuentes de mercado:
 
 - Ninguna de las fuentes REST da `adj_close` en su plan gratuito. Para retornos totales
   (con dividendos y splits) usa Yahoo.
-- **Alpha Vantage** fecha las barras semanales y mensuales en la última sesión del
-  periodo, y Yahoo en la primera. El plan gratuito limita las peticiones por minuto y día.
+- Las barras semanales y mensuales se fechan al **inicio** del periodo en todas las
+  fuentes (Alpha Vantage las publica en la última sesión y se refechan).
+- **Alpha Vantage** gratuito: 1 petición por segundo y cupo diario, y el histórico
+  diario completo (`outputsize=full`) es premium. El adaptador pide `compact` (~100
+  sesiones) cuando el rango cabe; si no, la API lo rechaza con un mensaje claro.
 - **Twelve Data** devuelve como máximo 5000 barras por petición. Los índices pueden no
   traer volumen, que queda a `NaN`.
 
@@ -127,7 +162,8 @@ Notas sobre las fuentes especializadas:
 
 - **CoinGecko** no ofrece OHLC diario en el plan gratuito: `close` y `volume` vienen de
   la API y `open/high/low` quedan a `NaN` (no se inventan velas). Las frecuencias
-  semanal, mensual, etc. se agregan en local.
+  semanal, mensual, etc. se agregan en local. Con el plan demo, un `--start` de hace
+  más de 365 días se rechaza antes de llamar a la API.
 - **EIA** devuelve `MacroSeries` (precios de materias primas sin OHLCV). Su API ignora
   `start`/`end`, así que el adaptador pagina y filtra el rango en local. No tiene vintages
   (`--as-of`).
@@ -144,8 +180,9 @@ Errores:
   NOTATICKER123: yahoo: sin datos para NOTATICKER123 en el rango solicitado
 ```
 
-Códigos de salida: `0` si se descarga al menos una serie, `1` si fallan todas y `2` ante
-errores de uso o de configuración (p. ej. falta `FRED_API_KEY`). Con `-v` se activa el
+Códigos de salida: `0` si se obtiene al menos una serie o documento, `1` si fallan
+todas (o falla la fuente de documentos) y `2` ante errores de uso o de configuración
+(p. ej. falta `FRED_API_KEY` o `--workers 0`). Con `-v` se activa el
 logging detallado. `python -m toolkit ...` equivale a `toolkit ...`.
 
 ### Desde Python
@@ -178,7 +215,18 @@ cpi = service.download_macro(
     MacroRequest(series_ids=["CPIAUCSL"], start=date(2000, 1, 1), as_of=date(2015, 6, 30))
 ).series["CPIAUCSL"]
 cpi.vintage, cpi.mean, cpi.std
+
+# Solo macro (no construye ninguna fuente de precios) y documentos regulatorios
+ecb = build_download_service(None, "ecb")
+
+from toolkit.bootstrap import build_document_service
+from toolkit.domain.documents import DocumentRequest
+
+docs = build_document_service("esma").list_documents(DocumentRequest("DLTINS", limit=5))
 ```
+
+Las peticiones se validan al crearlas: `DownloadRequest(tickers=[])` o un
+`start > end` lanzan `InvalidRequestError` antes de cualquier descarga.
 
 Para desarrollar sin red (por ejemplo, la cartera), los proveedores sintéticos de los tests
 (`tests/fakes.py`) se pueden inyectar directamente desde la raíz del repo:
@@ -209,19 +257,20 @@ ruff check .                # linter
 │   └── adr/0001-arquitectura-hexagonal.md
 ├── notebooks/                  # demo (fase 3)
 ├── src/toolkit/
-│   ├── domain/                 # CORE: models.py, errors.py, portfolio.py (stub)
-│   ├── ports/                  # inbound.py (DownloadData), outbound.py (Price/MacroProvider)
-│   ├── services/               # download_service.py (lote paralelo)
+│   ├── domain/                 # CORE: models.py, documents.py, errors.py, portfolio.py
+│   ├── ports/                  # inbound.py (DownloadData, ListDocuments), outbound.py (Price/Macro/DocumentProvider)
+│   ├── services/               # download_service.py (lote paralelo), document_service.py
 │   ├── adapters/
 │   │   ├── inbound/cli.py      # argparse
 │   │   └── outbound/           # un subpaquete por tipo de fuente
 │   │       ├── _http.py        # cliente HTTP común (reintentos, ocultar claves)
 │   │       ├── _prices.py      # normalización OHLCV común
-│   │       ├── _periods.py     # periodos (2024-Q1, 2024M01...) y frecuencias
+│   │       ├── _periods.py     # periodos, frecuencias, clip y refechado al inicio
 │   │       ├── _sdmx.py        # base SDMX-CSV (BCE, BIS, Eurostat)
 │   │       ├── market/         # yahoo, alpha_vantage, twelve_data
 │   │       ├── macro/          # fred, ecb, eurostat, bis, world_bank, banco_espana
 │   │       ├── fiscal/         # us_treasury
+│   │       ├── regulatory/     # sec_edgar (series), cnmv y esma (documentos)
 │   │       └── specialized/    # coingecko.py, eia.py
 │   └── bootstrap.py            # composition root + entry point
 └── tests/                      # todo el código de test (src solo contiene producción)

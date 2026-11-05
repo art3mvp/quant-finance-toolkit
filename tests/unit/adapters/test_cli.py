@@ -18,11 +18,13 @@ class Factory:
     """Fábrica de servicio que registra los argumentos recibidos."""
 
     def __init__(self, **fake_kwargs: object) -> None:
-        self.calls: list[tuple[str, str | None, int]] = []
+        self.calls: list[tuple[str | None, str | None, int]] = []
         self.price = FakePriceProvider(**fake_kwargs)  # type: ignore[arg-type]
         self.macro = FakeMacroProvider(**fake_kwargs)  # type: ignore[arg-type]
 
-    def __call__(self, price_source: str, macro_source: str | None, workers: int) -> DownloadData:
+    def __call__(
+        self, price_source: str | None, macro_source: str | None, workers: int
+    ) -> DownloadData:
         self.calls.append((price_source, macro_source, workers))
         macro = self.macro if macro_source else None
         return DownloadService(self.price, macro, max_workers=workers)
@@ -112,7 +114,7 @@ def test_macro_with_as_of_and_parquet(tmp_path: Path) -> None:
     )
     assert code == EXIT_OK
     assert "2015-06-30" in out
-    assert factory.calls[0][1] == "fake"
+    assert factory.calls[0][:2] == (None, "fake")  # macro no construye fuente de precios
     frame = pd.read_parquet(tmp_path / "CPIAUCSL_asof_2015-06-30.parquet")
     assert list(frame.columns) == ["value"]
     assert frame.index.max() <= pd.Timestamp("2015-06-30")

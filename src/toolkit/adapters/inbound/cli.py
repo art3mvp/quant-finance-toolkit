@@ -172,11 +172,12 @@ def _print_prices(result: DownloadResult[PriceSeries], out: TextIO) -> None:
     print(f"Descargadas: {result.n_success} OK, {result.n_failed} fallidas", file=out)
     if not result.series:
         return
-    header = f"{'ticker':<12}{'fuente':<8}{'divisa':<7}{'n_obs':>7}  {'inicio':<11}{'fin':<11}"
+    # 14 caracteres: cabe el nombre de fuente más largo previsto (p. ej. "alpha_vantage")
+    header = f"{'ticker':<12}{'fuente':<14}{'divisa':<7}{'n_obs':>7}  {'inicio':<11}{'fin':<11}"
     print(header + f"{'media_ret':>12}{'std_ret':>11}", file=out)
     for ticker, s in result.series.items():
         print(
-            f"{ticker:<12}{s.source:<8}{s.currency or '-':<7}{s.n_obs:>7}  "
+            f"{ticker:<12}{s.source:<14}{s.currency or '-':<7}{s.n_obs:>7}  "
             f"{s.start!s:<11}{s.end!s:<11}{s.mean_return:>12.6f}{s.std_return:>11.6f}",
             file=out,
         )

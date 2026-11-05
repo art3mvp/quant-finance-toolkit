@@ -73,6 +73,20 @@ def imported_modules(source: str, module: str, is_package: bool) -> set[str]:
     return found
 
 
+def _is_allowed_adapter_import(module: str, imported: str) -> bool:
+    """Un adaptador solo importa sus paquetes contenedores, a sí mismo o helpers privados.
+
+    Los adaptadores viven en ``toolkit.adapters.<dir>[.<tipo>].<modulo>``. Los módulos
+    con prefijo ``_`` (p. ej. ``_http``) son infraestructura compartida, no adaptadores.
+    """
+    return (
+        module == imported
+        or module.startswith(imported + ".")  # paquete contenedor
+        or imported.startswith(module + ".")  # submódulo propio (p. ej. un __init__)
+        or any(part.startswith("_") for part in imported.split(".")[2:])
+    )
+
+
 def check_module(module: str, imports: set[str]) -> list[Violation]:
     """Aplica la regla de dependencias a un módulo y devuelve las violaciones."""
     parts = module.split(".")
@@ -91,9 +105,8 @@ def check_module(module: str, imports: set[str]) -> list[Violation]:
                 if target == layer and layer != "adapters":
                     continue
                 if layer == "adapters" and target == "adapters":
-                    own = ".".join(parts[:4])  # toolkit.adapters.<dir>.<module>
-                    if len(imp_parts) <= 3 or ".".join(imp_parts[:4]) == own:
-                        continue  # import de paquetes contenedores o de sí mismo
+                    if _is_allowed_adapter_import(module, imported):
+                        continue
                     violations.append(Violation(module, imported, "un adaptador importa otro"))
                     continue
                 violations.append(
@@ -139,6 +152,10 @@ def test_dependency_rule(module: str, path: Path) -> None:
         ("toolkit.services.download_service", "from toolkit import bootstrap"),
         ("toolkit.adapters.outbound.yahoo", "from toolkit.adapters.outbound.fred import X"),
         ("toolkit.adapters.outbound.yahoo", "from .fred import FredMacroProvider"),
+        # Mismo tipo o tipos distintos: sigue siendo un adaptador importando otro.
+        ("toolkit.adapters.outbound.market.yahoo", "from .other import X"),
+        ("toolkit.adapters.outbound.market.yahoo", "from ..macro.fred import X"),
+        ("toolkit.adapters.outbound.market.yahoo", "from toolkit.adapters.outbound import macro"),
         ("toolkit.adapters.inbound.cli", "from toolkit.bootstrap import build_download_service"),
         ("toolkit.adapters.inbound.cli", "from toolkit.services.download_service import X"),
     ],
@@ -159,10 +176,16 @@ def test_checker_detects_violations(module: str, source: str) -> None:
         ("toolkit.ports.outbound", "from toolkit.domain.models import PriceSeries"),
         ("toolkit.services.download_service", "from toolkit.ports.outbound import PriceProvider"),
         (
-            "toolkit.adapters.outbound.yahoo",
+            "toolkit.adapters.outbound.market.yahoo",
             "import yfinance as yf\nfrom toolkit.domain import models",
         ),
-        ("toolkit.bootstrap", "from toolkit.adapters.outbound.yahoo import YahooPriceProvider"),
+        (
+            "toolkit.bootstrap",
+            "from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider",
+        ),
+        # Los helpers privados compartidos no cuentan como adaptadores.
+        ("toolkit.adapters.outbound.market.yahoo", "from .._http import HttpClient"),
+        ("toolkit.adapters.outbound.macro.fred", "from toolkit.adapters.outbound._http import X"),
     ],
 )
 def test_checker_accepts_valid_imports(module: str, source: str) -> None:

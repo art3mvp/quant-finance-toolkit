@@ -23,19 +23,30 @@ flowchart LR
         SVC --> POUT
     end
 
-    subgraph OUT["Adaptadores outbound"]
-        YF["YahooPriceProvider<br/>(yfinance)"]
-        FRED["FredMacroProvider<br/>(API REST FRED/ALFRED)"]
+    subgraph OUT["Adaptadores outbound (por tipo)"]
+        subgraph MKT["market/"]
+            YF["YahooPriceProvider<br/>(yfinance)"]
+        end
+        subgraph MAC["macro/"]
+            FRED["FredMacroProvider<br/>(API REST FRED/ALFRED)"]
+        end
+        subgraph SPE["specialized/"]
+            CG["CoinGeckoPriceProvider<br/>(cripto)"]
+            EIA["EiaMacroProvider<br/>(energía)"]
+        end
+        HTTP["_http.HttpClient<br/>(infraestructura común)"]
         FAKE["Fake providers<br/>(solo en tests/)"]
-        NEW["Alpha Vantage, Finnhub...<br/>(futuro)"]
     end
 
     CLI --> PIN
     NB -.-> PIN
     POUT -. implementado por .-> YF
     POUT -. implementado por .-> FRED
+    POUT -. implementado por .-> CG
+    POUT -. implementado por .-> EIA
     POUT -. implementado por .-> FAKE
-    POUT -. implementado por .-> NEW
+    CG --> HTTP
+    EIA --> HTTP
 
     BOOT{{"bootstrap.py<br/>composition root"}}
     BOOT -- inyecta proveedores --> SVC
@@ -49,7 +60,7 @@ flowchart LR
 | Dominio | `toolkit.domain` | Modelos (`PriceSeries`, `MacroSeries`, peticiones, `DownloadResult`), errores, `Portfolio`. Validación de esquema y estadísticos. | stdlib, `pandas`, `numpy`, `matplotlib` (solo visualización: `plots_report()` y Monte Carlo, requeridos como métodos de `Portfolio` por el enunciado) |
 | Puertos | `toolkit.ports` | Contratos (`Protocol`): `DownloadData` (inbound), `PriceProvider` y `MacroProvider` (outbound). | `domain` |
 | Servicios | `toolkit.services` | Casos de uso: `DownloadService` (descarga en lote, paralelismo, tolerancia a fallos). | `domain`, `ports` |
-| Adaptadores | `toolkit.adapters` | Traducción con el exterior: CLI (inbound); Yahoo y FRED (outbound). Los fakes viven en `tests/`. | `domain`, `ports` y librerías externas; **nunca otro adaptador** |
+| Adaptadores | `toolkit.adapters` | Traducción con el exterior: CLI (inbound); fuentes de datos (outbound) agrupadas por tipo en `market/`, `macro/` y `specialized/`. Los fakes viven en `tests/`. | `domain`, `ports`, librerías externas y helpers privados `_*` (p. ej. `_http`); **nunca otro adaptador** |
 | Composition root | `toolkit.bootstrap` | Carga `.env`, elige proveedores por nombre y los inyecta. Punto de entrada `toolkit`. | todo |
 
 ### Regla de dependencias
@@ -116,8 +127,10 @@ muchas series macro (PIB, IPC, empleo) se revisan después de publicarse.
 
 ## Extender el sistema
 
-- **Nueva fuente de datos**: un módulo en `adapters/outbound/` que cumpla `PriceProvider`
-  o `MacroProvider`, más una línea en el registro de `bootstrap.py`. Ver el README.
+- **Nueva fuente de datos**: un módulo en `adapters/outbound/<tipo>/` que cumpla
+  `PriceProvider` o `MacroProvider`, más una línea en el registro de `bootstrap.py`.
+  Los adaptadores se agrupan por tipo de fuente (`market/`, `macro/`...); la agrupación
+  es organizativa: un adaptador sigue sin poder importar otro, aunque sea del mismo tipo.
 - **Nuevo punto de entrada** (API, notebook): un adaptador inbound que dependa solo de
   `DownloadData` y reciba el servicio desde `bootstrap`.
 - **Cartera / Monte Carlo / reportes**: en `domain/portfolio.py` y, si requieren I/O

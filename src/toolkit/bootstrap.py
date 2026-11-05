@@ -24,8 +24,10 @@ from typing import TypeVar
 from dotenv import find_dotenv, load_dotenv
 
 from toolkit.adapters.inbound import cli
-from toolkit.adapters.outbound.fred import FredMacroProvider
-from toolkit.adapters.outbound.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
+from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
 from toolkit.domain.errors import ConfigurationError
 from toolkit.ports.outbound import MacroProvider, PriceProvider
 from toolkit.services.download_service import DownloadService
@@ -35,11 +37,15 @@ P = TypeVar("P")
 #: Fábricas de proveedores de precios por nombre de fuente.
 PRICE_PROVIDERS: dict[str, Callable[[], PriceProvider]] = {
     "yahoo": YahooPriceProvider,
+    "coingecko": lambda: CoinGeckoPriceProvider(
+        api_key=os.getenv("COINGECKO_API_KEY"), plan=os.getenv("COINGECKO_API_PLAN", "demo")
+    ),
 }
 
 #: Fábricas de proveedores macro por nombre de fuente.
 MACRO_PROVIDERS: dict[str, Callable[[], MacroProvider]] = {
     "fred": lambda: FredMacroProvider(api_key=os.getenv("FRED_API_KEY")),
+    "eia": lambda: EiaMacroProvider(api_key=os.getenv("EIA_API_KEY")),
 }
 
 

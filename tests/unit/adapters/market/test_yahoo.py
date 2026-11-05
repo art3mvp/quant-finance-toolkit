@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from yfinance.exceptions import YFPricesMissingError
 
-from toolkit.adapters.outbound.yahoo import YahooPriceProvider, normalize_history
+from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider, normalize_history
 from toolkit.domain.errors import ProviderError, SeriesNotFoundError
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 from toolkit.ports.outbound import PriceProvider
@@ -50,7 +50,9 @@ def test_satisfies_port() -> None:
 
 
 def test_happy_path(mock_ticker: mock.MagicMock) -> None:
-    with mock.patch("toolkit.adapters.outbound.yahoo.yf.Ticker", return_value=mock_ticker) as cls:
+    with mock.patch(
+        "toolkit.adapters.outbound.market.yahoo.yf.Ticker", return_value=mock_ticker
+    ) as cls:
         series = YahooPriceProvider().fetch_prices(
             "AAPL", date(2024, 1, 1), date(2024, 1, 4), Frequency.DAILY, AssetType.EQUITY
         )
@@ -106,7 +108,7 @@ def test_library_exception_becomes_provider_error(
 ) -> None:
     mock_ticker.history.side_effect = error
     with (
-        mock.patch("toolkit.adapters.outbound.yahoo.yf.Ticker", return_value=mock_ticker),
+        mock.patch("toolkit.adapters.outbound.market.yahoo.yf.Ticker", return_value=mock_ticker),
         pytest.raises(ProviderError) as excinfo,
     ):
         YahooPriceProvider().fetch_prices("AAPL", None, None, Frequency.DAILY, AssetType.EQUITY)

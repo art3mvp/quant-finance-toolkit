@@ -4,8 +4,14 @@ Toolkit en Python para **extraer, estandarizar y analizar datos bursátiles y
 macroeconómicos** y, en próximas fases, **gestionar carteras**. Taller B1-T1, Máster de IA
 aplicada a mercados financieros.
 
-- Descarga **multifuente**: Yahoo Finance (acciones e índices) y FRED/ALFRED
-  (series macro, con vintages para evitar el *look-ahead bias*).
+- Descarga **multifuente**, con un adaptador por fuente agrupado por tipo:
+
+  | Tipo | Fuente | Datos | `--source` | Clave |
+  |------|--------|-------|------------|-------|
+  | market | Yahoo Finance | acciones e índices (OHLCV) | `yahoo` | no |
+  | macro | FRED/ALFRED | series macro, con vintages (*look-ahead bias*) | `fred` | `FRED_API_KEY` |
+  | specialized | CoinGecko | criptoactivos (cierre + volumen) | `coingecko` | opcional |
+  | specialized | EIA | energía: WTI, Brent, gas Henry Hub... | `eia` | `EIA_API_KEY` |
 - **Formato estándar** para todas las fuentes (`PriceSeries`, `MacroSeries`) con
   estadísticos calculados automáticamente.
 - Descarga **en lote y en paralelo**: un fallo individual no tumba el lote.
@@ -17,8 +23,10 @@ aplicada a mercados financieros.
 
 - Python **3.10 o superior** (probado en 3.14).
 - `git`.
-- Una API key gratuita de FRED (solo para series macro):
-  <https://fred.stlouisfed.org/docs/api/api_key.html>.
+- API keys gratuitas, solo para las fuentes que vayas a usar:
+  - FRED (series macro): <https://fred.stlouisfed.org/docs/api/api_key.html>.
+  - EIA (energía): <https://www.eia.gov/opendata/register.php>.
+  - CoinGecko funciona sin clave (plan público/demo, histórico de 365 días como máximo).
 
 ## Instalación
 
@@ -59,16 +67,30 @@ toolkit macro CPIAUCSL DGS10 --start 2000-01-01
 # Series macro tal como se publicaron el 30/06/2015 (ALFRED)
 toolkit macro CPIAUCSL GDP --start 2000-01-01 --as-of 2015-06-30 --out data/ --format parquet
 
+# Criptoactivos (CoinGecko): el ticker es el id de CoinGecko, no el símbolo
+toolkit prices bitcoin ethereum --source coingecko --type crypto --start 2026-01-01
+
+# Energía (EIA): WTI y Brent diarios, gas natural Henry Hub mensual
+toolkit macro PET.RWTC.D PET.RBRTE.D NG.RNGWHHD.M --source eia --start 2020-01-01
 ```
+
+Notas sobre las fuentes especializadas:
+
+- **CoinGecko** no ofrece OHLC diario en el plan gratuito: `close` y `volume` vienen de
+  la API y `open/high/low` quedan a `NaN` (no se inventan velas). Las frecuencias
+  semanal, mensual, etc. se agregan en local.
+- **EIA** devuelve `MacroSeries` (precios de materias primas sin OHLCV). Su API ignora
+  `start`/`end`, así que el adaptador pagina y filtra el rango en local. No tiene vintages
+  (`--as-of`).
 
 Ejemplo de salida:
 
 ```
 Descargadas: 3 OK, 1 fallidas
-ticker      fuente  divisa   n_obs  inicio     fin           media_ret    std_ret
-AAPL        yahoo   USD       1258  2020-01-02 2024-12-31     0.001182   0.019956
-MSFT        yahoo   USD       1258  2020-01-02 2024-12-31     0.000988   0.019211
-^GSPC       yahoo   USD       1258  2020-01-02 2024-12-31     0.000561   0.013443
+ticker      fuente        divisa   n_obs  inicio     fin           media_ret    std_ret
+AAPL        yahoo         USD       1258  2020-01-02 2024-12-31     0.001182   0.019956
+MSFT        yahoo         USD       1258  2020-01-02 2024-12-31     0.000988   0.019211
+^GSPC       yahoo         USD       1258  2020-01-02 2024-12-31     0.000561   0.013443
 Errores:
   NOTATICKER123: yahoo: sin datos para NOTATICKER123 en el rango solicitado
 ```
@@ -132,7 +154,7 @@ ruff check .                # linter
 
 ```
 ├── pyproject.toml              # dependencias, entry point `toolkit`, pytest, ruff
-├── .env.example                # FRED_API_KEY=
+├── .env.example                # FRED_API_KEY, EIA_API_KEY, COINGECKO_API_KEY...
 ├── docs/
 │   ├── architecture.md         # capas, regla de dependencias, flujo, diagrama
 │   └── adr/0001-arquitectura-hexagonal.md
@@ -143,7 +165,11 @@ ruff check .                # linter
 │   ├── services/               # download_service.py (lote paralelo)
 │   ├── adapters/
 │   │   ├── inbound/cli.py      # argparse
-│   │   └── outbound/           # yahoo.py, fred.py
+│   │   └── outbound/           # un subpaquete por tipo de fuente
+│   │       ├── _http.py        # cliente HTTP común (reintentos, ocultar claves)
+│   │       ├── market/         # yahoo.py
+│   │       ├── macro/          # fred.py
+│   │       └── specialized/    # coingecko.py, eia.py
 │   └── bootstrap.py            # composition root + entry point
 └── tests/                      # todo el código de test (src solo contiene producción)
     ├── fakes.py                # proveedores sintéticos que implementan los puertos

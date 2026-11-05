@@ -9,11 +9,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from toolkit.domain.errors import InvalidSeriesError, ToolkitError
+from toolkit.domain.errors import InvalidRequestError, InvalidSeriesError, ToolkitError
 from toolkit.domain.models import (
     AssetType,
+    DownloadRequest,
     DownloadResult,
     Frequency,
+    MacroRequest,
     MacroSeries,
     PriceSeries,
 )
@@ -52,6 +54,16 @@ def make_price_series(data: pd.DataFrame, ticker: str = "TEST") -> PriceSeries:
 
 
 class TestPriceSeries:
+    def test_accepts_crypto_with_unknown_ohl(self) -> None:
+        # Fuentes cripto como CoinGecko solo dan cierre y volumen: OHL queda a NaN.
+        data = make_ohlcv([100, 110], adj=False)
+        data[["open", "high", "low"]] = np.nan
+        series = PriceSeries(
+            "bitcoin", None, AssetType.CRYPTO, "unit", "USD", Frequency.DAILY, data
+        )
+        assert series.asset_type is AssetType.CRYPTO
+        assert series.mean_return == pytest.approx(0.10)
+
     def test_computes_stats_on_post_init(self) -> None:
         series = make_price_series(make_ohlcv([100, 110, 99]))
         expected = pd.Series([0.10, -0.10])
@@ -191,3 +203,32 @@ class TestDownloadResult:
 def test_portfolio_rejects_empty_input() -> None:
     with pytest.raises(InvalidSeriesError):
         Portfolio(series=[], weights={})
+
+
+# ---------------------------------------------------------------------- peticiones
+
+
+def test_requests_clean_ids_into_tuples_preserving_case_and_order() -> None:
+    request = DownloadRequest(tickers=[" AAPL", "AAPL", "msft "])
+    assert request.tickers == ("AAPL", "msft")
+    assert MacroRequest(series_ids=["DGS10", "DGS10"]).series_ids == ("DGS10",)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"tickers": []},
+        {"tickers": ["  "]},
+        {"tickers": "AAPL"},
+        {"tickers": [None]},
+        {"tickers": ["AAPL"], "start": date(2024, 1, 2), "end": date(2024, 1, 1)},
+    ],
+)
+def test_invalid_price_requests_fail_at_construction(kwargs: dict[str, object]) -> None:
+    with pytest.raises(InvalidRequestError):
+        DownloadRequest(**kwargs)  # type: ignore[arg-type]
+
+
+def test_invalid_macro_request_and_error_is_value_error() -> None:
+    with pytest.raises(ValueError):  # InvalidRequestError también es ValueError
+        MacroRequest(series_ids=[])

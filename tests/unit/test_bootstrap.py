@@ -6,8 +6,10 @@ import pytest
 
 from tests.fakes import FakeMacroProvider, FakePriceProvider
 from toolkit import bootstrap
-from toolkit.adapters.outbound.fred import FredMacroProvider
-from toolkit.adapters.outbound.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
+from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
+from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
 from toolkit.domain.errors import ConfigurationError
 from toolkit.domain.models import MacroRequest
 
@@ -37,6 +39,14 @@ def test_registered_wiring_and_case_insensitive_names() -> None:
     assert isinstance(service.price_provider, FakePriceProvider)
     assert isinstance(service.macro_provider, FakeMacroProvider)
     assert service.max_workers == 2
+
+
+def test_specialized_sources_are_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COINGECKO_API_PLAN", "pro")
+    service = bootstrap.build_download_service("coingecko", "eia")
+    assert isinstance(service.price_provider, CoinGeckoPriceProvider)
+    assert service.price_provider.plan == "pro"
+    assert isinstance(service.macro_provider, EiaMacroProvider)
 
 
 def test_macro_source_can_be_disabled() -> None:

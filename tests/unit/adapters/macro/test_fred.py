@@ -10,7 +10,7 @@ import pytest
 import responses
 from responses import matchers
 
-from toolkit.adapters.outbound.fred import (
+from toolkit.adapters.outbound.macro.fred import (
     DEFAULT_BASE_URL,
     FredMacroProvider,
     map_frequency,

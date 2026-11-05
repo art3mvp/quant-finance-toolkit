@@ -1,11 +1,13 @@
 """Test de arquitectura: verifica la regla de dependencias del hexágono con ``ast``.
 
-Reglas:
-    * ``domain``   → solo stdlib, ``pandas``, ``numpy``, ``matplotlib`` y ``toolkit.domain``.
-    * ``ports``    → además puede importar ``toolkit.domain``. Sin librerías de I/O.
-    * ``services`` → ``toolkit.domain`` y ``toolkit.ports``. Sin librerías de I/O.
-    * ``adapters`` → ``toolkit.domain`` y ``toolkit.ports``; nunca otro adaptador,
-      ni ``services`` ni ``bootstrap``.
+Reglas (las dependencias solo apuntan hacia dentro):
+    * ``domain``            → stdlib, ``pandas``, ``numpy`` y ``toolkit.domain``.
+    * ``ports``             → además ``toolkit.domain``. Sin librerías de I/O.
+    * ``services``          → ``toolkit.domain`` y ``toolkit.ports``. Sin librerías de I/O.
+    * ``adapters.inbound``  → ``toolkit.domain`` y ``toolkit.ports.inbound``: entra por
+      los casos de uso, nunca por los puertos outbound ni por otro adaptador.
+    * ``adapters.outbound`` → ``toolkit.domain``, ``toolkit.ports.outbound`` y los helpers
+      privados ``adapters/outbound/_*``; nunca otro adaptador.
     * ``bootstrap`` (composition root) puede importar cualquier cosa.
 """
 
@@ -21,17 +23,17 @@ import pytest
 SRC = Path(__file__).resolve().parents[2] / "src"
 PACKAGE = "toolkit"
 
-#: Librerías de terceros permitidas en las capas internas (sin I/O de red).
-#: ``matplotlib`` se admite porque ``Cartera.plots_report()`` y la visualización de
-#: Monte Carlo son métodos del dominio según el enunciado (ver ADR).
-PURE_THIRD_PARTY = {"pandas", "numpy", "matplotlib"}
+#: Librerías de terceros permitidas en las capas internas: cálculo puro, sin I/O.
+PURE_THIRD_PARTY = {"pandas", "numpy"}
 
-#: Capas de ``toolkit`` que puede importar cada capa.
-ALLOWED_INTERNAL: dict[str, set[str]] = {
-    "domain": {"domain"},
-    "ports": {"domain"},
-    "services": {"domain", "ports"},
-    "adapters": {"domain", "ports"},
+#: Prefijos de ``toolkit`` que puede importar cada capa.
+LAYER_RULES: dict[str, tuple[str, ...]] = {
+    "toolkit.domain": ("toolkit.domain",),
+    "toolkit.ports": ("toolkit.domain", "toolkit.ports"),
+    "toolkit.services": ("toolkit.domain", "toolkit.ports", "toolkit.services"),
+    "toolkit.adapters": ("toolkit.domain",),  # solo los __init__ de los paquetes
+    "toolkit.adapters.inbound": ("toolkit.domain", "toolkit.ports.inbound"),
+    "toolkit.adapters.outbound": ("toolkit.domain", "toolkit.ports.outbound"),
 }
 
 
@@ -73,49 +75,77 @@ def imported_modules(source: str, module: str, is_package: bool) -> set[str]:
     return found
 
 
-def _is_allowed_adapter_import(module: str, imported: str) -> bool:
+def _within(name: str, prefix: str) -> bool:
+    return name == prefix or name.startswith(prefix + ".")
+
+
+def _layer_label(name: str) -> str:
+    """``toolkit.adapters.outbound.market.yahoo`` → ``adapters.outbound``."""
+    parts = name.split(".")[1:]
+    return ".".join(parts[:2] if parts[:1] == ["adapters"] else parts[:1])
+
+
+def layer_of(module: str) -> str | None:
+    """Capa más específica a la que pertenece ``module`` (``None`` si no tiene reglas)."""
+    matches = [layer for layer in LAYER_RULES if _within(module, layer)]
+    return max(matches, key=len) if matches else None
+
+
+def _is_allowed(layer: str, imported: str) -> bool:
+    """``imported`` está permitido o es un paquete contenedor de algo permitido."""
+    return any(
+        _within(imported, prefix) or prefix.startswith(imported + ".")
+        for prefix in LAYER_RULES[layer]
+    )
+
+
+def _is_allowed_adapter_import(module: str, layer: str, imported: str) -> bool:
     """Un adaptador solo importa sus paquetes contenedores, a sí mismo o helpers privados.
 
-    Los adaptadores viven en ``toolkit.adapters.<dir>[.<tipo>].<modulo>``. Los módulos
-    con prefijo ``_`` (p. ej. ``_http``) son infraestructura compartida, no adaptadores.
+    Los adaptadores viven en ``toolkit.adapters.<inbound|outbound>[.<tipo>].<modulo>``.
+    Los módulos con prefijo ``_`` (p. ej. ``_http``) son infraestructura compartida, no
+    adaptadores, pero solo dentro del mismo lado: la CLI no puede usar ``_http``.
     """
+    if layer.startswith(imported + "."):
+        return True  # paquete contenedor (``toolkit.adapters``)
+    if not _within(imported, layer):
+        return False  # cruza de inbound a outbound o al revés
     return (
         module == imported
         or module.startswith(imported + ".")  # paquete contenedor
         or imported.startswith(module + ".")  # submódulo propio (p. ej. un __init__)
-        or any(part.startswith("_") for part in imported.split(".")[2:])
+        or any(part.startswith("_") for part in imported.split(".")[3:])
     )
 
 
 def check_module(module: str, imports: set[str]) -> list[Violation]:
     """Aplica la regla de dependencias a un módulo y devuelve las violaciones."""
-    parts = module.split(".")
-    if len(parts) < 2 or parts[1] not in ALLOWED_INTERNAL:
+    layer = layer_of(module)
+    if layer is None:
         return []  # toolkit/__init__, bootstrap, __main__: sin restricciones
-    layer = parts[1]
+    is_adapter = _within(layer, "toolkit.adapters")
+    label = _layer_label(layer)
     violations: list[Violation] = []
     for imported in imports:
         top = imported.split(".")[0]
         if top == PACKAGE:
-            imp_parts = imported.split(".")
-            if len(imp_parts) < 2:
+            if imported == PACKAGE or _is_allowed(layer, imported):
                 continue
-            target = imp_parts[1]
-            if target not in ALLOWED_INTERNAL[layer]:
-                if target == layer and layer != "adapters":
+            if is_adapter and _within(imported, "toolkit.adapters"):
+                if _is_allowed_adapter_import(module, layer, imported):
                     continue
-                if layer == "adapters" and target == "adapters":
-                    if _is_allowed_adapter_import(module, imported):
-                        continue
-                    violations.append(Violation(module, imported, "un adaptador importa otro"))
-                    continue
-                violations.append(
-                    Violation(module, imported, f"{layer} no puede depender de {target}")
-                )
-        elif layer != "adapters" and top not in sys.stdlib_module_names:
+                if _within(imported, layer):
+                    reason = "un adaptador importa otro"
+                else:
+                    reason = f"{label} no puede depender de {_layer_label(imported)}"
+                violations.append(Violation(module, imported, reason))
+                continue
+            target = ".".join(imported.split(".")[1:3])
+            violations.append(Violation(module, imported, f"{label} no puede depender de {target}"))
+        elif not is_adapter and top not in sys.stdlib_module_names:
             if top not in PURE_THIRD_PARTY and top != "__future__":
                 violations.append(
-                    Violation(module, imported, f"librería de terceros no permitida en {layer}")
+                    Violation(module, imported, f"librería de terceros no permitida en {label}")
                 )
     return violations
 
@@ -158,6 +188,16 @@ def test_dependency_rule(module: str, path: Path) -> None:
         ("toolkit.adapters.outbound.market.yahoo", "from toolkit.adapters.outbound import macro"),
         ("toolkit.adapters.inbound.cli", "from toolkit.bootstrap import build_download_service"),
         ("toolkit.adapters.inbound.cli", "from toolkit.services.download_service import X"),
+        # La CLI entra por los casos de uso, no por los puertos outbound ni sus helpers.
+        ("toolkit.adapters.inbound.cli", "from toolkit.ports.outbound import PriceProvider"),
+        ("toolkit.adapters.inbound.cli", "from toolkit.ports import outbound"),
+        ("toolkit.adapters.inbound.cli", "from toolkit.adapters.outbound._http import X"),
+        ("toolkit.adapters.inbound.cli", "from toolkit.adapters.outbound.storage import files"),
+        ("toolkit.adapters.outbound.market.yahoo", "from toolkit.ports.inbound import X"),
+        ("toolkit.adapters.outbound.market.yahoo", "from toolkit.adapters.inbound import cli"),
+        # El núcleo no dibuja ni escribe ficheros: eso es de los adaptadores.
+        ("toolkit.domain.portfolio", "import matplotlib.pyplot as plt"),
+        ("toolkit.services.storage_service", "import pyarrow"),
     ],
 )
 def test_checker_detects_violations(module: str, source: str) -> None:
@@ -186,6 +226,13 @@ def test_checker_detects_violations(module: str, source: str) -> None:
         # Los helpers privados compartidos no cuentan como adaptadores.
         ("toolkit.adapters.outbound.market.yahoo", "from .._http import HttpClient"),
         ("toolkit.adapters.outbound.macro.fred", "from toolkit.adapters.outbound._http import X"),
+        ("toolkit.adapters.inbound.cli", "from toolkit.ports.inbound import StoreSeries"),
+        ("toolkit.adapters.inbound.cli", "from toolkit.ports import inbound"),
+        (
+            "toolkit.adapters.outbound.storage.files",
+            "import pandas as pd\nfrom toolkit.ports.outbound import SeriesRepository",
+        ),
+        ("toolkit.services.storage_service", "from toolkit.ports.outbound import X"),
     ],
 )
 def test_checker_accepts_valid_imports(module: str, source: str) -> None:

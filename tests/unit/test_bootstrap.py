@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.fakes import FakeMacroProvider, FakePriceProvider
@@ -21,8 +23,13 @@ from toolkit.adapters.outbound.regulatory.esma import EsmaDocumentProvider
 from toolkit.adapters.outbound.regulatory.sec_edgar import SecEdgarMacroProvider
 from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
+from toolkit.adapters.outbound.storage.files import FileSeriesRepository
 from toolkit.domain.errors import ConfigurationError
 from toolkit.domain.models import MacroRequest
+from toolkit.ports.inbound import StoreSeries
+
+#: ``load_settings`` real, antes de que ``no_dotenv`` lo sustituya en cada test.
+REAL_LOAD_SETTINGS = bootstrap.load_settings
 
 
 @pytest.fixture(autouse=True)
@@ -126,3 +133,31 @@ def test_main_runs_cli_end_to_end(capsys: pytest.CaptureFixture[str]) -> None:
     code = bootstrap.main(["prices", "AAPL", "MSFT", "--source", "fake"])
     assert code == 0
     assert "2 OK, 0 fallidas" in capsys.readouterr().out
+
+
+def test_storage_service_wraps_file_repository(tmp_path: Path) -> None:
+    service = bootstrap.build_storage_service(tmp_path, "csv")
+    assert isinstance(service, StoreSeries)
+    assert isinstance(service.repository, FileSeriesRepository)
+    assert service.repository.directory == tmp_path
+
+
+@pytest.mark.usefixtures("fake_sources")
+def test_main_saves_files_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code = bootstrap.main(["prices", "AAPL", "^GSPC", "--source", "fake", "--out", str(tmp_path)])
+    assert code == 0
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["AAPL.csv", "_GSPC.csv"]
+    assert "guardado" in capsys.readouterr().out
+
+
+def test_settings_are_loaded_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[object] = []
+    monkeypatch.setattr(bootstrap, "find_dotenv", lambda **_: ".env")
+    monkeypatch.setattr(bootstrap, "load_dotenv", lambda *args, **_: calls.append(args))
+    REAL_LOAD_SETTINGS.cache_clear()
+    try:
+        REAL_LOAD_SETTINGS()
+        REAL_LOAD_SETTINGS()
+    finally:
+        REAL_LOAD_SETTINGS.cache_clear()
+    assert len(calls) == 1

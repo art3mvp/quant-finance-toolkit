@@ -1,129 +1,231 @@
 # Arquitectura del toolkit
 
-El toolkit sigue una **arquitectura hexagonal (puertos y adaptadores)**, tal como se
-describe en *Architecture Patterns with Python* (Percival & Gregory). La decisión y sus
-alternativas están en [ADR 0001](adr/0001-arquitectura-hexagonal.md).
+El toolkit sigue una **arquitectura hexagonal (puertos y adaptadores)**, al estilo de
+*Architecture Patterns with Python* (Percival & Gregory). Este documento explica qué hay
+en cada capa, qué puede usar cada una y por qué.
+
+## Por qué hexagonal
+
+Las 15 fuentes integradas difieren en casi todo:
+
+- **Transporte**: librería (`yfinance`), REST JSON, CSV SDMX y RSS.
+- **Autenticación**: sin clave, clave en la URL, clave en cabecera o `User-Agent` obligatorio.
+- **Errores**: HTTP 200 con el error en el cuerpo, 400 ambiguos, 412...
+- **Fechas**: última sesión, fin de mes o inicio de periodo.
+- **Mayúsculas**: unas rutas las distinguen y otras no.
+
+Si esas diferencias llegaran al análisis, cada script de cartera o de Monte Carlo
+tendría que conocerlas. La arquitectura las encierra en un adaptador por fuente; el
+resto del sistema solo ve **un contrato común** (los modelos del dominio). Por eso:
+
+- Añadir una fuente es **un módulo y una línea** en `bootstrap.py`; el núcleo no cambia.
+- Cambiar de fuente no cambia la salida: siempre es la misma `PriceSeries` o `MacroSeries`.
+- El núcleo se prueba **sin red**, con fakes; cada adaptador, con HTTP simulado.
+
+Se descartaron dos alternativas: *scripts por fuente que devuelven `DataFrame`s* (cada
+fuente impone su formato al análisis) y *capas clásicas datos → negocio → presentación*
+(el negocio acaba dependiendo de tipos de `requests` o `yfinance`). En la hexagonal es
+al revés: la infraestructura depende del núcleo.
 
 ## Diagrama
 
 ```mermaid
 flowchart LR
-    subgraph IN["Adaptadores inbound"]
+    subgraph IN["Adaptadores inbound (driving)"]
         CLI["CLI<br/>adapters/inbound/cli.py"]
-        NB["Notebooks / API<br/>(futuro)"]
+        NB["Notebooks / Python<br/>(vía bootstrap)"]
     end
 
-    subgraph HEX["Hexágono (core)"]
-        PIN[["Puertos inbound<br/>DownloadData · ListDocuments"]]
-        SVC["DownloadService · DocumentService<br/>services/"]
-        DOM["Dominio<br/>PriceSeries · MacroSeries · RegulatoryDocument<br/>peticiones validadas · DownloadResult · Portfolio"]
-        POUT[["Puertos outbound<br/>PriceProvider · MacroProvider · DocumentProvider"]]
+    subgraph HEX["Hexágono (núcleo)"]
+        PIN[["Puertos inbound (casos de uso)<br/>DownloadData · ListDocuments · StoreSeries"]]
+        SVC["Servicios<br/>DownloadService · DocumentService · StorageService"]
+        DOM["Dominio<br/>PriceSeries · MacroSeries · RegulatoryDocument<br/>peticiones · DownloadResult · errores · Portfolio"]
+        POUT[["Puertos outbound<br/>PriceProvider · MacroProvider<br/>DocumentProvider · SeriesRepository"]]
         PIN --> SVC
         SVC --> DOM
         SVC --> POUT
     end
 
-    subgraph OUT["Adaptadores outbound (por tipo)"]
-        subgraph MKT["market/"]
-            YF["YahooPriceProvider<br/>(yfinance)"]
-            AV["AlphaVantagePriceProvider"]
-            TD["TwelveDataPriceProvider"]
-        end
-        subgraph MAC["macro/"]
-            FRED["FredMacroProvider<br/>(API REST FRED/ALFRED)"]
-            SDMX["Ecb · Eurostat · Bis<br/>(heredan de _sdmx.SdmxMacroProvider)"]
-            WB["WorldBankMacroProvider"]
-            BDE["BancoEspanaMacroProvider"]
-        end
-        subgraph FIS["fiscal/"]
-            UST["UsTreasuryMacroProvider"]
-        end
-        subgraph REG["regulatory/"]
-            SEC["SecEdgarMacroProvider<br/>(fundamentales point-in-time)"]
-            DOCS["Cnmv · Esma<br/>DocumentProvider"]
-        end
-        subgraph SPE["specialized/"]
-            CG["CoinGeckoPriceProvider<br/>(cripto)"]
-            EIA["EiaMacroProvider<br/>(energía)"]
-        end
+    subgraph OUT["Adaptadores outbound (driven)"]
+        SRC["Fuentes de datos<br/>market/ · macro/ · fiscal/<br/>regulatory/ · specialized/"]
+        STO["Persistencia<br/>storage/files.py (CSV, Parquet)"]
         HTTP["_http · _prices · _periods · _sdmx<br/>(infraestructura común)"]
-        FAKE["Fake providers<br/>(solo en tests/)"]
+        FAKE["Fakes<br/>(solo en tests/)"]
+        SRC --> HTTP
     end
 
     CLI --> PIN
-    NB -.-> PIN
-    POUT -. implementado por .-> MKT
-    POUT -. implementado por .-> MAC
-    POUT -. implementado por .-> FIS
-    POUT -. implementado por .-> REG
-    POUT -. implementado por .-> CG
-    POUT -. implementado por .-> EIA
+    NB --> PIN
+    POUT -. implementado por .-> SRC
+    POUT -. implementado por .-> STO
     POUT -. implementado por .-> FAKE
-    MKT --> HTTP
-    SDMX --> HTTP
-    WB --> HTTP
-    BDE --> HTTP
-    UST --> HTTP
-    SEC --> HTTP
-    DOCS --> HTTP
-    CG --> HTTP
-    EIA --> HTTP
 
     BOOT{{"bootstrap.py<br/>composition root"}}
-    BOOT -- inyecta proveedores --> SVC
-    BOOT -- inyecta fábricas, fuentes y defaults --> CLI
+    BOOT -- crea adaptadores e inyecta --> SVC
+    BOOT -- inyecta fábricas de casos de uso --> CLI
 ```
 
-## Capas
+Las flechas continuas son dependencias de código y **siempre apuntan hacia el
+dominio**. Las discontinuas indican qué adaptador cumple cada puerto: el adaptador no
+hereda del puerto ni lo importa necesariamente; basta con que tenga los mismos métodos
+(tipado estructural, PEP 544).
 
-| Capa | Paquete | Responsabilidad | Puede importar |
-|------|---------|-----------------|----------------|
-| Dominio | `toolkit.domain` | Modelos (`PriceSeries`, `MacroSeries`, `RegulatoryDocument`), peticiones (`DownloadRequest`, `MacroRequest`, `DocumentRequest`), `DownloadResult`, errores, `Portfolio`. Todas las dataclasses se validan en `__post_init__`. | stdlib, `pandas`, `numpy`, `matplotlib` (solo visualización: `plots_report()` y Monte Carlo, requeridos como métodos de `Portfolio` por el enunciado) |
-| Puertos | `toolkit.ports` | Contratos (`Protocol`): `DownloadData` y `ListDocuments` (inbound); `PriceProvider`, `MacroProvider` y `DocumentProvider` (outbound). | `domain` |
-| Servicios | `toolkit.services` | Casos de uso: `DownloadService` (descarga en lote, paralelismo, tolerancia a fallos) y `DocumentService` (orden y límite garantizados). | `domain`, `ports` |
-| Adaptadores | `toolkit.adapters` | Traducción con el exterior: CLI (inbound); fuentes de datos (outbound) agrupadas por tipo en `market/`, `macro/`, `fiscal/`, `regulatory/` y `specialized/`. Los fakes viven en `tests/`. | `domain`, `ports`, librerías externas y helpers privados `_*` (p. ej. `_http`); **nunca otro adaptador** |
-| Composition root | `toolkit.bootstrap` | Carga `.env`, elige proveedores por nombre y los inyecta, junto con las fuentes por defecto de la CLI. Punto de entrada `toolkit`. | todo |
+## Las capas, una a una
 
-### Regla de dependencias
+### 1. Dominio (`toolkit.domain`)
 
-Las dependencias solo apuntan **hacia dentro**: adaptadores → puertos → dominio.
-El dominio no sabe que existen Yahoo, FRED, HTTP ni la consola.
+**Qué es:** el lenguaje común del toolkit. Lo que todas las demás capas producen o
+consumen.
 
-La regla se comprueba automáticamente en `tests/unit/test_architecture.py`, que recorre
-los imports de cada módulo con `ast` y falla si alguna capa importa algo prohibido
-(incluidos imports relativos y `yfinance`/`requests` en capas internas). También
-comprueba que `src/` no contiene código de test: ni ficheros `test_*`/`fake*`/`conftest`
-ni imports de `pytest`, `unittest` o `responses`.
+- **Series** (`models.py`): `PriceSeries` (OHLCV) y `MacroSeries` (univariante). Son
+  dataclasses inmutables que **se validan al crearse** (`__post_init__`) y calculan sus
+  estadísticos (media y desviación) en ese momento.
+- **Documentos** (`documents.py`): `RegulatoryDocument`, para fuentes que no publican
+  series sino textos (CNMV, ESMA).
+- **Peticiones**: `DownloadRequest`, `MacroRequest` y `DocumentRequest`. Una petición
+  inválida (`tickers=[]`, `start > end`...) falla antes de tocar la red.
+- **Resultados y errores**: `DownloadResult[T]` y la jerarquía `ToolkitError`.
+- **Análisis** (`portfolio.py`, `simulation.py`): `Portfolio` (pesos, retornos alineados,
+  volatilidad) y Monte Carlo (`simulate_gbm`).
 
-La CLI tampoco importa `bootstrap`, servicios ni puertos outbound, y no conoce nombres
-de fuentes ni de librerías. Recibe *fábricas* que devuelven objetos que cumplen
-`DownloadData` o `ListDocuments`, la lista de fuentes y las de por defecto; es
-`bootstrap.main` quien se lo inyecta. Por eso el entry point del paquete es
-`toolkit.bootstrap:main`.
+**Puede usar:** stdlib, `pandas` y `numpy`. **Nada de I/O**: ni red, ni ficheros, ni
+consola, ni gráficos. El dominio no sabe que existen Yahoo, FRED, HTTP o el disco.
+
+### 2. Puertos (`toolkit.ports`)
+
+**Qué son:** los contratos (`typing.Protocol` con `@runtime_checkable`) entre el núcleo
+y el exterior. No contienen lógica.
+
+- **Inbound** (`inbound.py`): lo que el núcleo **ofrece**, es decir, los casos de uso.
+  - `DownloadData`: descarga en lote de precios y series macro.
+  - `ListDocuments`: listado de documentos regulatorios.
+  - `StoreSeries`: persistir series descargadas.
+- **Outbound** (`outbound.py`): lo que el núcleo **necesita** del exterior.
+  - `PriceProvider`, `MacroProvider`, `DocumentProvider`: fuentes de datos.
+  - `SeriesRepository`: destino donde guardar series.
+
+**Puede usar:** solo el dominio.
+
+### 3. Servicios (`toolkit.services`)
+
+**Qué son:** las implementaciones de los casos de uso. Cumplen un puerto inbound y
+trabajan con puertos outbound que reciben en el constructor.
+
+| Servicio | Cumple | Usa | Qué garantiza |
+|---|---|---|---|
+| `DownloadService` | `DownloadData` | `PriceProvider`, `MacroProvider` | Descarga en paralelo, resultados en el orden de la petición; un fallo individual no aborta el lote (salvo `ConfigurationError`) |
+| `DocumentService` | `ListDocuments` | `DocumentProvider` | Como mucho `limit` documentos, del más reciente al más antiguo, aunque la fuente no lo respete |
+| `StorageService` | `StoreSeries` | `SeriesRepository` | Sin series no toca el destino; devuelve dónde quedó cada una |
+
+Cada servicio comprueba con `isinstance` que lo que recibe cumple su puerto, así que
+un error de cableado salta al construirlo, no a mitad de una descarga.
+
+**Puede usar:** dominio y puertos. Ninguna librería de I/O.
+
+### 4. Adaptadores (`toolkit.adapters`)
+
+**Qué son:** la traducción entre el núcleo y el mundo real. Hay dos lados y **no se
+mezclan**.
+
+**Inbound (`adapters/inbound/`)**: quien *usa* el toolkit.
+
+- `cli.py`: traduce argumentos de consola a peticiones del dominio, llama a los casos
+  de uso e imprime el resultado. No conoce servicios, adaptadores, nombres de fuentes
+  ni cómo se escriben los ficheros: recibe *fábricas* que devuelven objetos que cumplen
+  `DownloadData`, `ListDocuments` o `StoreSeries`.
+- **Puede usar:** dominio y **puertos inbound**. Nunca puertos outbound ni adaptadores
+  outbound: si la CLI quiere guardar, lo pide a `StoreSeries`, no al repositorio.
+
+**Outbound (`adapters/outbound/`)**: lo que el toolkit *usa*.
+
+- **Fuentes de datos**, un módulo por fuente, agrupadas por tipo:
+
+  | Carpeta | Adaptadores | Puerto |
+  |---|---|---|
+  | `market/` | `yahoo`, `alpha_vantage`, `twelve_data` | `PriceProvider` |
+  | `macro/` | `fred`, `ecb`, `eurostat`, `bis`, `world_bank`, `banco_espana` | `MacroProvider` |
+  | `fiscal/` | `us_treasury` | `MacroProvider` |
+  | `regulatory/` | `sec_edgar` | `MacroProvider` |
+  | `regulatory/` | `cnmv`, `esma` | `DocumentProvider` |
+  | `specialized/` | `coingecko` | `PriceProvider` |
+  | `specialized/` | `eia` | `MacroProvider` |
+
+- **Persistencia** (`storage/files.py`): `FileSeriesRepository`, un CSV o Parquet por
+  serie. Si se pide Parquet sin `pyarrow`, falla al construirse, antes de descargar.
+- **Infraestructura común** (módulos privados `_*.py`, que no son adaptadores):
+  - `_http`: reintentos, `Retry-After`, ocultación de claves y traducción HTTP → errores
+    de dominio. Las fuentes que codifican el motivo en el cuerpo (FRED) aportan un
+    `error_mapper`.
+  - `_prices`: normalización OHLCV (con `adj_close` opcional).
+  - `_periods`: formatos de periodo, frecuencias, recorte por fechas (`clip`) y
+    refechado al inicio del periodo (`to_period_start`).
+  - `_sdmx`: base SDMX-CSV. BCE, BIS y Eurostat son subclases de tres líneas.
+- **Puede usar:** dominio, **puertos outbound**, librerías externas (`requests`,
+  `yfinance`...) y los helpers `_*`. **Nunca otro adaptador**, aunque sea del mismo tipo.
+
+Todos los adaptadores de fuentes traducen sus errores a la jerarquía del dominio, así
+que ninguna excepción de `requests` o `yfinance` llega al núcleo (ver
+[Criterio de errores](#criterio-de-errores)).
+
+### 5. Composition root (`toolkit.bootstrap`)
+
+**Qué es:** el único módulo que conoce las clases concretas y el único que lee el
+entorno.
+
+- Carga `.env` una sola vez por proceso.
+- Registra las fuentes por nombre (`PRICE_PROVIDERS`, `MACRO_PROVIDERS`,
+  `DOCUMENT_PROVIDERS`).
+- Construye los casos de uso: `build_download_service`, `build_document_service` y
+  `build_storage_service`. Es la API para usar el toolkit desde Python o un notebook.
+- `main` inyecta esas fábricas, la lista de fuentes y las de por defecto en la CLI. Es
+  el entry point del comando `toolkit`.
+
+**Puede usar:** todo.
+
+## Regla de dependencias
+
+| Capa | Puede importar de `toolkit` | Librerías externas |
+|---|---|---|
+| `domain` | `domain` | `pandas`, `numpy` |
+| `ports` | `domain` | `pandas`, `numpy` |
+| `services` | `domain`, `ports` | `pandas`, `numpy` |
+| `adapters.inbound` | `domain`, `ports.inbound` | cualquiera |
+| `adapters.outbound` | `domain`, `ports.outbound`, helpers `outbound/_*` | cualquiera |
+| `bootstrap` | todo | cualquiera |
+
+La regla se comprueba en cada `pytest` con `tests/unit/test_architecture.py`. El test
+recorre los imports de cada módulo con `ast` (incluidos los relativos) y falla si una
+capa importa algo prohibido: `requests` en el dominio, `matplotlib` en un servicio, la
+CLI importando un puerto outbound o `_http`, un adaptador importando otro... Tiene sus
+propios autotests con violaciones sintéticas, para asegurar que las detecta.
+
+También comprueba que `src/` no contiene código de test (ficheros `test_*`/`fake*`/
+`conftest` ni imports de `pytest`, `unittest` o `responses`). Los fakes viven en
+`tests/fakes.py`.
 
 ## Flujo de una petición
 
-`toolkit prices AAPL ^GSPC --start 2020-01-01`:
+`toolkit prices AAPL ^GSPC --start 2020-01-01 --out data/`:
 
-1. **`bootstrap.main`** carga `.env`, y la CLI (`cli.run`) parsea los argumentos.
-2. La CLI llama a la fábrica inyectada →
-   `build_download_service("yahoo", None)` → `DownloadService(YahooPriceProvider())`.
-3. La CLI construye un `DownloadRequest` (dominio), que se valida al crearse: lista no
-   vacía, `start <= end`, ids limpios y sin duplicados (sin cambiar mayúsculas, porque
-   cada API las trata a su manera). Después llama a
-   `DownloadData.download_prices(request)` (puerto inbound).
-4. **`DownloadService`** lanza N llamadas `PriceProvider.fetch_prices` en un
+1. **`bootstrap.main`** inyecta las fábricas en la CLI, que parsea los argumentos.
+2. Como hay `--out`, la CLI pide a la fábrica de almacenamiento un `StoreSeries`:
+   `build_storage_service(Path("data"), "csv")` →
+   `StorageService(FileSeriesRepository(...))`. Si el destino no es válido (p. ej.
+   Parquet sin `pyarrow`), falla aquí, **antes de descargar**.
+3. La CLI pide el caso de uso de descarga: `build_download_service("yahoo", None)` →
+   `DownloadService(YahooPriceProvider())`. Construye un `DownloadRequest`, que se
+   valida al crearse, y llama a `DownloadData.download_prices(request)`.
+4. **`DownloadService`** lanza una llamada `PriceProvider.fetch_prices` por ticker en un
    `ThreadPoolExecutor`.
-5. **`YahooPriceProvider`** llama a `yfinance` con `auto_adjust=False` y normaliza el
-   `DataFrame`: columnas en minúsculas, tz-naive, ordenado y sin duplicados. Construye
-   la `PriceSeries`, que valida su esquema y calcula `mean_return`/`std_return` en
-   `__post_init__`. Los errores de `yfinance` se traducen a
-   `SeriesNotFoundError`/`ProviderError`.
+5. **`YahooPriceProvider`** llama a `yfinance` y normaliza el `DataFrame` (columnas en
+   minúsculas, tz-naive, ordenado, sin duplicados). Construye la `PriceSeries`, que
+   valida su esquema y calcula `mean_return`/`std_return`. Los errores de `yfinance` se
+   traducen a `SeriesNotFoundError`/`ProviderError`.
 6. El servicio recoge los resultados **en el orden de entrada**. Un fallo individual se
-   guarda en `DownloadResult.errors` y no aborta el lote; solo `ConfigurationError` lo
-   detiene, porque afecta a todas las series.
-7. La CLI imprime el resumen, guarda CSV/Parquet si se indicó `--out` y devuelve el
-   código de salida: 0 si hay al menos una serie OK, 1 si fallan todas y 2 ante errores
+   guarda en `DownloadResult.errors`.
+7. La CLI imprime el resumen y llama a `StoreSeries.store(result.series)`, que escribe
+   `data/AAPL.csv` y `data/_GSPC.csv`.
+8. Código de salida: 0 si hay al menos una serie OK, 1 si fallan todas y 2 ante errores
    de uso o configuración.
 
 ## Modelo de datos (el contrato)
@@ -140,17 +242,23 @@ de fuentes ni de librerías. Recibe *fábricas* que devuelven objetos que cumple
 - **`RegulatoryDocument`**: `source`, `identifier`, `title`, `url`, `published_at`
   (UTC, tz-naive) y, opcionales, `issuer`, `category` y `summary`.
 - **Peticiones** (`DownloadRequest`, `MacroRequest`, `DocumentRequest`): inmutables y
-  validadas al crearse; los ids se guardan como `tuple`.
+  validadas al crearse; los ids se guardan como `tuple`, sin cambiar mayúsculas (cada
+  API las trata a su manera).
 - **`DownloadResult[T]`**: `series` (en el orden de la petición) y `errors`, con las
   propiedades `ok`, `n_success`, `n_failed` y `all_failed`.
-- **Errores**: `ToolkitError` es la base de `InvalidSeriesError`, `InvalidDocumentError`,
-  `InvalidRequestError`, `ConfigurationError` y `ProviderError`; de este último deriva
-  `SeriesNotFoundError`. Criterio común a todos los adaptadores:
-  - `InvalidRequestError`: la petición no tiene sentido para la fuente (id mal formado,
-    `as_of` o frecuencia no soportados).
-  - `ConfigurationError`: falta o se rechaza una credencial (401/403); aborta el lote.
-  - `SeriesNotFoundError`: el id no existe o no hay datos en el rango.
-  - `ProviderError`: red, límites de la API o formato inesperado.
+
+### Criterio de errores
+
+`ToolkitError` es la base de `InvalidSeriesError`, `InvalidDocumentError`,
+`InvalidRequestError`, `ConfigurationError` y `ProviderError`; de este último deriva
+`SeriesNotFoundError`. Todos los adaptadores siguen el mismo criterio:
+
+- `InvalidRequestError`: la petición no tiene sentido para la fuente (id mal formado,
+  `as_of` o frecuencia no soportados, formato de fichero desconocido).
+- `ConfigurationError`: falta o se rechaza una credencial (401/403), o falta una
+  dependencia opcional (`pyarrow`). **Aborta el lote**, porque afecta a todas las series.
+- `SeriesNotFoundError`: el id no existe o no hay datos en el rango.
+- `ProviderError`: red, límites de la API, formato inesperado o fallo de escritura.
 
 ### Convención de fechas
 
@@ -162,38 +270,7 @@ Tesoro, el último día del mes), así que los adaptadores refechan con
 una cartera. Excepción documentada: los fundamentales de SEC EDGAR usan la fecha de
 cierre, porque los ejercicios fiscales no siguen el calendario.
 
-## ¿Nueva fuente o nuevo tipo de dato?
-
-- **Nueva fuente** de un tipo existente (otra API de precios o de series): solo hace
-  falta un adaptador y una línea en `bootstrap`. Así se añadieron todas las fuentes
-  market, macro, fiscal y specialized, y también SEC EDGAR, porque un concepto contable
-  es una serie univariante y `as_of` le da sentido *point-in-time*.
-- **Nuevo tipo de dato** (documentos regulatorios): no es una serie temporal, así que
-  forzarlo en `MacroSeries` rompería el contrato (media y desviación de un texto).
-  Requiere un modelo (`RegulatoryDocument`), una petición (`DocumentRequest`), un
-  puerto outbound (`DocumentProvider`) y, para que la CLI no lo use directamente, un
-  caso de uso (`ListDocuments` + `DocumentService`).
-  Es una extensión del núcleo, no una modificación: ningún modelo, puerto ni servicio
-  existente cambia.
-
-## Infraestructura común de adaptadores
-
-Los módulos privados `adapters/outbound/_*.py` no son adaptadores: no implementan
-puertos ni hablan con una fuente concreta. Agrupan lo que, si no, se duplicaría en cada
-adaptador:
-
-- `_http`: reintentos, `Retry-After`, ocultación de claves y traducción HTTP → errores de
-  dominio. Las fuentes que codifican el motivo en el cuerpo (FRED) aportan un
-  `error_mapper`. Todas las fuentes REST lo usan.
-- `_prices`: normalización OHLCV (con `adj_close` opcional), común a Yahoo y a las REST.
-- `_periods`: formatos de periodo, frecuencias, recorte por fechas (`clip`) y
-  refechado al inicio del periodo (`to_period_start`).
-- `_sdmx`: base SDMX-CSV. BCE, BIS y Eurostat son subclases de tres líneas.
-
-El test de arquitectura permite importarlos, pero sigue prohibiendo que un adaptador
-importe otro.
-
-## FRED vs ALFRED
+### FRED vs ALFRED
 
 Sin `as_of`, FRED devuelve la **última revisión** de cada dato. Con `as_of`, el
 adaptador envía `realtime_start = realtime_end = as_of` y obtiene los datos **tal como
@@ -202,12 +279,21 @@ muchas series macro (PIB, IPC, empleo) se revisan después de publicarse.
 
 ## Extender el sistema
 
-- **Nueva fuente de datos**: un módulo en `adapters/outbound/<tipo>/` que cumpla
-  `PriceProvider`, `MacroProvider` o `DocumentProvider`, más una línea en el registro
-  de `bootstrap.py`. Debe respetar el criterio de errores y la convención de fechas.
-  Los adaptadores se agrupan por tipo de fuente (`market/`, `macro/`...); la agrupación
-  es organizativa: un adaptador sigue sin poder importar otro, aunque sea del mismo tipo.
-- **Nuevo punto de entrada** (API, notebook): un adaptador inbound que dependa solo de
-  `DownloadData`/`ListDocuments` y reciba los servicios desde `bootstrap`.
-- **Cartera / Monte Carlo / reportes**: en `domain/portfolio.py` y, si requieren I/O
-  (gráficos, ficheros), en nuevos puertos y adaptadores.
+- **Nueva fuente de un tipo existente** (otra API de precios o de series): un módulo en
+  `adapters/outbound/<tipo>/` que cumpla `PriceProvider` o `MacroProvider`, y una línea
+  en el registro de `bootstrap.py`. Debe respetar el criterio de errores y la
+  convención de fechas. Así se integraron las 15 fuentes. SEC EDGAR entra como
+  `MacroProvider` porque un concepto contable es una serie univariante y `as_of` le da
+  sentido *point-in-time*.
+- **Nuevo tipo de dato** (como los documentos regulatorios): no es una serie temporal,
+  así que forzarlo en `MacroSeries` rompería el contrato. Requiere un modelo, una
+  petición, un puerto outbound y un caso de uso (puerto inbound + servicio). Es una
+  **extensión** del núcleo: ningún modelo, puerto ni servicio existente cambia.
+- **Nuevo destino de persistencia** (base de datos, S3...): un adaptador en
+  `adapters/outbound/storage/` que cumpla `SeriesRepository`, y cablearlo en
+  `build_storage_service`. La CLI y los notebooks no cambian.
+- **Nuevo punto de entrada** (API REST, notebook): un adaptador inbound que use solo los
+  puertos inbound y reciba los casos de uso desde `bootstrap`.
+- **Visualización y reportes** (`plots_report`...): el dominio calcula, no dibuja. Los
+  gráficos van en un adaptador (o en el propio notebook) que consuma los objetos del
+  dominio; así el núcleo sigue sin depender de `matplotlib`.

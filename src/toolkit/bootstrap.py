@@ -25,6 +25,8 @@ from dotenv import find_dotenv, load_dotenv
 
 from toolkit.adapters.inbound import cli
 from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.market.alpha_vantage import AlphaVantagePriceProvider
+from toolkit.adapters.outbound.market.twelve_data import TwelveDataPriceProvider
 from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
 from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvider
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
@@ -37,6 +39,8 @@ P = TypeVar("P")
 #: Fábricas de proveedores de precios por nombre de fuente.
 PRICE_PROVIDERS: dict[str, Callable[[], PriceProvider]] = {
     "yahoo": YahooPriceProvider,
+    "alpha_vantage": lambda: AlphaVantagePriceProvider(api_key=os.getenv("ALPHA_VANTAGE_API_KEY")),
+    "twelve_data": lambda: TwelveDataPriceProvider(api_key=os.getenv("TWELVE_DATA_API_KEY")),
     "coingecko": lambda: CoinGeckoPriceProvider(
         api_key=os.getenv("COINGECKO_API_KEY"), plan=os.getenv("COINGECKO_API_PLAN", "demo")
     ),

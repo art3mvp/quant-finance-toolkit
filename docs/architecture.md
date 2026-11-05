@@ -35,6 +35,9 @@ flowchart LR
             WB["WorldBankMacroProvider"]
             BDE["BancoEspanaMacroProvider"]
         end
+        subgraph FIS["fiscal/"]
+            UST["UsTreasuryMacroProvider"]
+        end
         subgraph SPE["specialized/"]
             CG["CoinGeckoPriceProvider<br/>(cripto)"]
             EIA["EiaMacroProvider<br/>(energía)"]
@@ -47,6 +50,7 @@ flowchart LR
     NB -.-> PIN
     POUT -. implementado por .-> MKT
     POUT -. implementado por .-> MAC
+    POUT -. implementado por .-> FIS
     POUT -. implementado por .-> CG
     POUT -. implementado por .-> EIA
     POUT -. implementado por .-> FAKE
@@ -54,6 +58,7 @@ flowchart LR
     SDMX --> HTTP
     WB --> HTTP
     BDE --> HTTP
+    UST --> HTTP
     CG --> HTTP
     EIA --> HTTP
 

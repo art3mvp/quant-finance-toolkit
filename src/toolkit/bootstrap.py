@@ -24,6 +24,7 @@ from typing import TypeVar
 from dotenv import find_dotenv, load_dotenv
 
 from toolkit.adapters.inbound import cli
+from toolkit.adapters.outbound.fiscal.us_treasury import UsTreasuryMacroProvider
 from toolkit.adapters.outbound.macro.banco_espana import BancoEspanaMacroProvider
 from toolkit.adapters.outbound.macro.bis import BisMacroProvider
 from toolkit.adapters.outbound.macro.ecb import EcbMacroProvider
@@ -59,6 +60,7 @@ MACRO_PROVIDERS: dict[str, Callable[[], MacroProvider]] = {
     "bis": BisMacroProvider,
     "world_bank": WorldBankMacroProvider,
     "banco_espana": BancoEspanaMacroProvider,
+    "us_treasury": UsTreasuryMacroProvider,  # fiscal: mismo puerto que las series macro
     "eia": lambda: EiaMacroProvider(api_key=os.getenv("EIA_API_KEY")),
 }
 

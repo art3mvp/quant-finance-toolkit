@@ -17,6 +17,7 @@ aplicada a mercados financieros.
   | macro | BIS | tipos de cambio efectivos, tipos oficiales, vivienda | `bis` | no |
   | macro | Banco Mundial | indicadores por país (PIB, inflación...) | `world_bank` | no |
   | macro | Banco de España | Euríbor, tipos, crédito... | `banco_espana` | no |
+  | fiscal | U.S. Treasury Fiscal Data | deuda pública, tipos medios de la deuda... | `us_treasury` | no |
   | specialized | CoinGecko | criptoactivos (cierre + volumen) | `coingecko` | opcional |
   | specialized | EIA | energía: WTI, Brent, gas Henry Hub... | `eia` | `EIA_API_KEY` |
 - **Formato estándar** para todas las fuentes (`PriceSeries`, `MacroSeries`) con
@@ -81,6 +82,10 @@ toolkit macro prc_hicp_manr/M.RCH_A.CP00.ES --source eurostat --start 2015-01-01
 toolkit macro ESP/NY.GDP.MKTP.CD USA/FP.CPI.TOTL.ZG --source world_bank   # '<ISO3>/<indicador>'
 toolkit macro D_1NBAF472 --source banco_espana --start 2010-01-01           # Euríbor 1 año
 
+# Fiscal (Tesoro de EE. UU.): '<endpoint>:<campo>[:<filtro>=<valor>]'
+toolkit macro v2/accounting/od/debt_to_penny:tot_pub_debt_out_amt --source us_treasury --start 2020-01-01
+toolkit macro "v2/accounting/od/avg_interest_rates:avg_interest_rate_amt:security_desc=Treasury Bills" --source us_treasury
+
 # Misma petición, otra fuente de mercado: la salida es la misma PriceSeries
 toolkit prices AAPL MSFT --source twelve_data --start 2024-01-01
 toolkit prices IBM --source alpha_vantage --interval weekly
@@ -100,6 +105,14 @@ Notas sobre las fuentes macro:
   rechaza en lugar de mezclarlas.
 - Todas las fechas se normalizan al **inicio** del periodo (`2024-Q1` → `2024-01-01`),
   igual que FRED.
+
+Notas sobre la fuente fiscal:
+
+- `us_treasury` usa el mismo puerto `MacroProvider`: una serie fiscal es una serie
+  temporal univariante, como una macro. Se separa en `fiscal/` por tipo de fuente.
+- Los endpoints con varias filas por fecha (p. ej. una por tipo de valor) exigen el
+  filtro `campo=valor`, que no distingue mayúsculas. Las fechas son el `record_date`
+  publicado (p. ej. fin de mes).
 
 Notas sobre las fuentes de mercado:
 
@@ -208,6 +221,7 @@ ruff check .                # linter
 │   │       ├── _sdmx.py        # base SDMX-CSV (BCE, BIS, Eurostat)
 │   │       ├── market/         # yahoo, alpha_vantage, twelve_data
 │   │       ├── macro/          # fred, ecb, eurostat, bis, world_bank, banco_espana
+│   │       ├── fiscal/         # us_treasury
 │   │       └── specialized/    # coingecko.py, eia.py
 │   └── bootstrap.py            # composition root + entry point
 └── tests/                      # todo el código de test (src solo contiene producción)

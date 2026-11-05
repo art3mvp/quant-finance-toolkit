@@ -12,6 +12,11 @@ aplicada a mercados financieros.
   | market | Alpha Vantage | acciones (OHLCV diario/semanal/mensual) | `alpha_vantage` | `ALPHA_VANTAGE_API_KEY` |
   | market | Twelve Data | acciones, índices, ETFs (OHLCV) | `twelve_data` | `TWELVE_DATA_API_KEY` |
   | macro | FRED/ALFRED | series macro, con vintages (*look-ahead bias*) | `fred` | `FRED_API_KEY` |
+  | macro | BCE | tipos de cambio, tipos oficiales, HICP | `ecb` | no |
+  | macro | Eurostat | precios, empleo, PIB de la UE | `eurostat` | no |
+  | macro | BIS | tipos de cambio efectivos, tipos oficiales, vivienda | `bis` | no |
+  | macro | Banco Mundial | indicadores por país (PIB, inflación...) | `world_bank` | no |
+  | macro | Banco de España | Euríbor, tipos, crédito... | `banco_espana` | no |
   | specialized | CoinGecko | criptoactivos (cierre + volumen) | `coingecko` | opcional |
   | specialized | EIA | energía: WTI, Brent, gas Henry Hub... | `eia` | `EIA_API_KEY` |
 - **Formato estándar** para todas las fuentes (`PriceSeries`, `MacroSeries`) con
@@ -69,6 +74,13 @@ toolkit macro CPIAUCSL DGS10 --start 2000-01-01
 # Series macro tal como se publicaron el 30/06/2015 (ALFRED)
 toolkit macro CPIAUCSL GDP --start 2000-01-01 --as-of 2015-06-30 --out data/ --format parquet
 
+# Macro sin clave: BCE / BIS / Eurostat usan ids SDMX '<flujo>/<clave>'
+toolkit macro EXR/D.USD.EUR.SP00.A ICP/M.U2.N.000000.4.ANR --source ecb --start 2020-01-01
+toolkit macro WS_CBPOL/M.US WS_EER/M.N.B.ES --source bis --start 2015-01-01
+toolkit macro prc_hicp_manr/M.RCH_A.CP00.ES --source eurostat --start 2015-01-01
+toolkit macro ESP/NY.GDP.MKTP.CD USA/FP.CPI.TOTL.ZG --source world_bank   # '<ISO3>/<indicador>'
+toolkit macro D_1NBAF472 --source banco_espana --start 2010-01-01           # Euríbor 1 año
+
 # Misma petición, otra fuente de mercado: la salida es la misma PriceSeries
 toolkit prices AAPL MSFT --source twelve_data --start 2024-01-01
 toolkit prices IBM --source alpha_vantage --interval weekly
@@ -79,6 +91,15 @@ toolkit prices bitcoin ethereum --source coingecko --type crypto --start 2026-01
 # Energía (EIA): WTI y Brent diarios, gas natural Henry Hub mensual
 toolkit macro PET.RWTC.D PET.RBRTE.D NG.RNGWHHD.M --source eia --start 2020-01-01
 ```
+
+Notas sobre las fuentes macro:
+
+- Solo FRED ofrece vintages (`--as-of`). En el resto, pedirlos da un error por serie.
+- BCE, BIS y Eurostat comparten una base SDMX-CSV (`adapters/outbound/_sdmx.py`). La
+  clave debe fijar todas las dimensiones: si la consulta devuelve varias series, se
+  rechaza en lugar de mezclarlas.
+- Todas las fechas se normalizan al **inicio** del periodo (`2024-Q1` → `2024-01-01`),
+  igual que FRED.
 
 Notas sobre las fuentes de mercado:
 
@@ -183,8 +204,10 @@ ruff check .                # linter
 │   │   └── outbound/           # un subpaquete por tipo de fuente
 │   │       ├── _http.py        # cliente HTTP común (reintentos, ocultar claves)
 │   │       ├── _prices.py      # normalización OHLCV común
+│   │       ├── _periods.py     # periodos (2024-Q1, 2024M01...) y frecuencias
+│   │       ├── _sdmx.py        # base SDMX-CSV (BCE, BIS, Eurostat)
 │   │       ├── market/         # yahoo, alpha_vantage, twelve_data
-│   │       ├── macro/          # fred.py
+│   │       ├── macro/          # fred, ecb, eurostat, bis, world_bank, banco_espana
 │   │       └── specialized/    # coingecko.py, eia.py
 │   └── bootstrap.py            # composition root + entry point
 └── tests/                      # todo el código de test (src solo contiene producción)

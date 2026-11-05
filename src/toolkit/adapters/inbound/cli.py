@@ -187,11 +187,13 @@ def _print_macro(result: DownloadResult[MacroSeries], out: TextIO) -> None:
     print(f"Descargadas: {result.n_success} OK, {result.n_failed} fallidas", file=out)
     if not result.series:
         return
-    header = f"{'serie':<14}{'frec':<10}{'n_obs':>7}  {'inicio':<11}{'fin':<11}"
+    # ancho adaptable: los ids SDMX (p. ej. EXR/D.USD.EUR.SP00.A) superan los 14 caracteres
+    width = max(14, *(len(sid) + 2 for sid in result.series))
+    header = f"{'serie':<{width}}{'frec':<10}{'n_obs':>7}  {'inicio':<11}{'fin':<11}"
     print(header + f"{'media':>14}{'std':>12}  vintage", file=out)
     for sid, s in result.series.items():
         print(
-            f"{sid:<14}{s.frequency.value:<10}{s.n_obs:>7}  {s.start!s:<11}{s.end!s:<11}"
+            f"{sid:<{width}}{s.frequency.value:<10}{s.n_obs:>7}  {s.start!s:<11}{s.end!s:<11}"
             f"{s.mean:>14.4f}{s.std:>12.4f}  {s.vintage or '-'}",
             file=out,
         )

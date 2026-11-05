@@ -24,7 +24,12 @@ from typing import TypeVar
 from dotenv import find_dotenv, load_dotenv
 
 from toolkit.adapters.inbound import cli
+from toolkit.adapters.outbound.macro.banco_espana import BancoEspanaMacroProvider
+from toolkit.adapters.outbound.macro.bis import BisMacroProvider
+from toolkit.adapters.outbound.macro.ecb import EcbMacroProvider
+from toolkit.adapters.outbound.macro.eurostat import EurostatMacroProvider
 from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.macro.world_bank import WorldBankMacroProvider
 from toolkit.adapters.outbound.market.alpha_vantage import AlphaVantagePriceProvider
 from toolkit.adapters.outbound.market.twelve_data import TwelveDataPriceProvider
 from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
@@ -49,6 +54,11 @@ PRICE_PROVIDERS: dict[str, Callable[[], PriceProvider]] = {
 #: Fábricas de proveedores macro por nombre de fuente.
 MACRO_PROVIDERS: dict[str, Callable[[], MacroProvider]] = {
     "fred": lambda: FredMacroProvider(api_key=os.getenv("FRED_API_KEY")),
+    "ecb": EcbMacroProvider,
+    "eurostat": EurostatMacroProvider,
+    "bis": BisMacroProvider,
+    "world_bank": WorldBankMacroProvider,
+    "banco_espana": BancoEspanaMacroProvider,
     "eia": lambda: EiaMacroProvider(api_key=os.getenv("EIA_API_KEY")),
 }
 

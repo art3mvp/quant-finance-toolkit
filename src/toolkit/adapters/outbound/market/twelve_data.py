@@ -19,8 +19,14 @@ from typing import Any
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._prices import clip, normalize_ohlcv
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.adapters.outbound._periods import clip, to_period_start
+from toolkit.adapters.outbound._prices import normalize_ohlcv
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 
 logger = logging.getLogger(__name__)
@@ -64,14 +70,15 @@ class TwelveDataPriceProvider:
         """Descarga OHLCV de ``ticker`` en ``[start, end]`` (ambos incluidos).
 
         Raises:
+            InvalidRequestError: Si se pide una frecuencia no soportada (la fuente no la ofrece).
             ConfigurationError: Si falta o se rechaza la API key.
             SeriesNotFoundError: Si el símbolo no existe o no hay datos.
-            ProviderError: Frecuencia no soportada, límites de la API o formato inválido.
+            ProviderError: Límites de la API o formato inválido.
         """
         if not self._api_key:
             raise ConfigurationError("Falta TWELVE_DATA_API_KEY (gratis en twelvedata.com)")
         if interval not in _INTERVALS:
-            raise ProviderError(f"twelve_data: frecuencia {interval.value} no soportada")
+            raise InvalidRequestError(f"twelve_data: frecuencia {interval.value} no soportada")
         params: dict[str, Any] = {
             "symbol": ticker,
             "interval": _INTERVALS[interval],
@@ -88,6 +95,7 @@ class TwelveDataPriceProvider:
         if start is not None and len(data) >= MAX_OUTPUT and data.index[0].date() > start:
             logger.warning("twelve_data: %s truncado a %d barras", ticker, MAX_OUTPUT)
         data = clip(data, start, end)
+        data = to_period_start(data, interval)
         if data.empty:
             raise SeriesNotFoundError(f"twelve_data: {ticker}: sin datos en el rango solicitado")
         return PriceSeries(

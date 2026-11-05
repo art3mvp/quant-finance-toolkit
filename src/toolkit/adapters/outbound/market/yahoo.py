@@ -18,7 +18,13 @@ import pandas as pd
 import yfinance as yf
 from yfinance.exceptions import YFTickerMissingError
 
-from toolkit.domain.errors import ProviderError, SeriesNotFoundError, ToolkitError
+from toolkit.adapters.outbound._prices import normalize_ohlcv
+from toolkit.domain.errors import (
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+    ToolkitError,
+)
 from toolkit.domain.models import PRICE_COLUMNS, AssetType, Frequency, PriceSeries
 
 logger = logging.getLogger(__name__)
@@ -75,11 +81,12 @@ class YahooPriceProvider:
         envía ``end + 1 día``). Sin fechas se descarga todo el histórico (``period="max"``).
 
         Raises:
+            InvalidRequestError: Si se pide una frecuencia no soportada (la fuente no la ofrece).
             SeriesNotFoundError: Si Yahoo no devuelve datos para el ticker o el rango.
-            ProviderError: Ante cualquier otro error (red, formato, frecuencia no soportada).
+            ProviderError: Ante cualquier otro error (red, formato).
         """
         if interval not in _INTERVALS:
-            raise ProviderError(f"yahoo: frecuencia {interval.value} no soportada")
+            raise InvalidRequestError(f"yahoo: frecuencia {interval.value} no soportada")
         factory = self._ticker_factory or yf.Ticker
         try:
             yf_ticker = factory(ticker)
@@ -94,12 +101,7 @@ class YahooPriceProvider:
         if raw is None or raw.empty:
             raise SeriesNotFoundError(f"yahoo: sin datos para {ticker} en el rango solicitado")
 
-        data = normalize_history(raw)
-        if data.empty:
-            raise SeriesNotFoundError(f"yahoo: sin datos válidos para {ticker}")
-        missing = {"open", "high", "low", "close", "volume"} - set(data.columns)
-        if missing:
-            raise ProviderError(f"yahoo: respuesta sin columnas {sorted(missing)} para {ticker}")
+        data = normalize_history(raw, ticker)
 
         name, currency = _metadata(yf_ticker)
         return PriceSeries(
@@ -130,30 +132,22 @@ class YahooPriceProvider:
         return kwargs
 
 
-def normalize_history(raw: pd.DataFrame) -> pd.DataFrame:
+def normalize_history(raw: pd.DataFrame, ticker: str = "") -> pd.DataFrame:
     """Convierte un ``DataFrame`` de ``yfinance`` al esquema estándar de ``PriceSeries``.
 
-    * Renombra columnas a minúsculas (``Adj Close`` → ``adj_close``) y descarta el resto
-      (dividendos, splits...).
-    * Quita la zona horaria conservando la fecha local del mercado y normaliza a medianoche.
-    * Ordena, elimina fechas duplicadas (se queda con la última) y filas sin cierre.
+    Renombra columnas a minúsculas (``Adj Close`` → ``adj_close``), descarta el resto
+    (dividendos, splits...) y delega en ``normalize_ohlcv``: tipos, fecha local del
+    mercado a medianoche, orden, duplicados y filas sin cierre.
+
+    Raises:
+        ProviderError: Si los valores no son numéricos.
+        SeriesNotFoundError: Si no queda ninguna fila con cierre.
     """
     df = raw.copy()
     if isinstance(df.columns, pd.MultiIndex):  # formato de yf.download con varios tickers
         df.columns = df.columns.get_level_values(0)
     df = df.rename(columns=lambda c: _COLUMN_MAP.get(c, str(c).strip().lower().replace(" ", "_")))
-    df = df[[c for c in PRICE_COLUMNS if c in df.columns]]
-
-    index = pd.DatetimeIndex(df.index)
-    if index.tz is not None:
-        index = index.tz_localize(None)
-    df.index = index.normalize().rename("date")
-
-    df = df.sort_index()
-    df = df[~df.index.duplicated(keep="last")]
-    if "close" in df.columns:
-        df = df.dropna(subset=["close"])
-    return df.astype(float)
+    return normalize_ohlcv(df[[c for c in PRICE_COLUMNS if c in df.columns]], "yahoo", ticker)
 
 
 def _metadata(yf_ticker: Any) -> tuple[str | None, str | None]:

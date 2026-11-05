@@ -6,7 +6,12 @@ import pytest
 
 from tests.fakes import FakeMacroProvider, FakePriceProvider
 from toolkit import bootstrap
+from toolkit.adapters.outbound.macro.banco_espana import BancoEspanaMacroProvider
+from toolkit.adapters.outbound.macro.bis import BisMacroProvider
+from toolkit.adapters.outbound.macro.ecb import EcbMacroProvider
+from toolkit.adapters.outbound.macro.eurostat import EurostatMacroProvider
 from toolkit.adapters.outbound.macro.fred import FredMacroProvider
+from toolkit.adapters.outbound.macro.world_bank import WorldBankMacroProvider
 from toolkit.adapters.outbound.market.alpha_vantage import AlphaVantagePriceProvider
 from toolkit.adapters.outbound.market.twelve_data import TwelveDataPriceProvider
 from toolkit.adapters.outbound.market.yahoo import YahooPriceProvider
@@ -60,6 +65,20 @@ def test_specialized_sources_are_registered(monkeypatch: pytest.MonkeyPatch) -> 
 )
 def test_market_sources_are_registered(name: str, cls: type) -> None:
     assert isinstance(bootstrap.build_download_service(name, None).price_provider, cls)
+
+
+@pytest.mark.parametrize(
+    ("name", "cls"),
+    [
+        ("ecb", EcbMacroProvider),
+        ("eurostat", EurostatMacroProvider),
+        ("bis", BisMacroProvider),
+        ("world_bank", WorldBankMacroProvider),
+        ("banco_espana", BancoEspanaMacroProvider),
+    ],
+)
+def test_macro_sources_are_registered(name: str, cls: type) -> None:
+    assert isinstance(bootstrap.build_download_service("yahoo", name).macro_provider, cls)
 
 
 def test_macro_source_can_be_disabled() -> None:

@@ -9,19 +9,27 @@ Particularidades (verificadas contra el servicio real):
       inválido) o ``Information``/``Note`` (límite de peticiones, plan o clave).
     * ``outputsize=compact`` devuelve ~100 sesiones; ``full`` todo el histórico. Se pide
       ``full`` solo si ``start`` queda fuera de la ventana compacta.
-    * Las barras semanales y mensuales se fechan en la última sesión del periodo.
+    * Las barras semanales y mensuales llegan fechadas en la última sesión del periodo;
+      se refechan al inicio del periodo, como el resto de fuentes.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
 import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
-from toolkit.adapters.outbound._prices import clip, normalize_ohlcv
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.adapters.outbound._periods import clip, to_period_start
+from toolkit.adapters.outbound._prices import normalize_ohlcv
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 
 DEFAULT_BASE_URL = "https://www.alphavantage.co/query"
@@ -52,7 +60,7 @@ class AlphaVantagePriceProvider:
         self,
         api_key: str | None,
         base_url: str = DEFAULT_BASE_URL,
-        today: Any = date.today,
+        today: Callable[[], date] = date.today,
         **http_options: Any,
     ) -> None:
         self._api_key = api_key.strip() if api_key else None
@@ -71,16 +79,17 @@ class AlphaVantagePriceProvider:
         """Descarga OHLCV de ``ticker`` y lo recorta a ``[start, end]``.
 
         Raises:
+            InvalidRequestError: Si se pide una frecuencia no soportada (la fuente no la ofrece).
             ConfigurationError: Si falta la API key.
             SeriesNotFoundError: Si el símbolo no existe o no hay datos en el rango.
-            ProviderError: Frecuencia no soportada, límites de la API o formato inválido.
+            ProviderError: Límites de la API o formato inválido.
         """
         if not self._api_key:
             raise ConfigurationError(
                 "Falta ALPHA_VANTAGE_API_KEY (gratis en https://www.alphavantage.co/support/)"
             )
         if interval not in _FUNCTIONS:
-            raise ProviderError(f"alpha_vantage: frecuencia {interval.value} no soportada")
+            raise InvalidRequestError(f"alpha_vantage: frecuencia {interval.value} no soportada")
         function, key = _FUNCTIONS[interval]
         # Orden de la documentación: la clave "demo" solo acepta las URLs de ejemplo.
         params = {"function": function, "symbol": ticker}
@@ -89,6 +98,7 @@ class AlphaVantagePriceProvider:
         params["apikey"] = self._api_key
         payload = self._http.get_json(self.base_url, params=params, identifier=ticker)
         data = clip(parse_time_series(payload, key, ticker), start, end)
+        data = to_period_start(data, interval)
         if data.empty:
             raise SeriesNotFoundError(f"alpha_vantage: {ticker}: sin datos en el rango solicitado")
         return PriceSeries(

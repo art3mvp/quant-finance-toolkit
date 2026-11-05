@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pandas as pd
 import pytest
 import responses
 from responses import matchers
@@ -13,7 +14,12 @@ from toolkit.adapters.outbound.market.alpha_vantage import (
     AlphaVantagePriceProvider,
     parse_time_series,
 )
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 from toolkit.ports.outbound import PriceProvider
 
@@ -84,6 +90,8 @@ def test_weekly_uses_weekly_function(provider: AlphaVantagePriceProvider) -> Non
     assert "function=TIME_SERIES_WEEKLY" in responses.calls[0].request.url
     assert "outputsize" not in responses.calls[0].request.url
     assert series.frequency is Frequency.WEEKLY
+    # el viernes 05/01 se refecha al lunes de su semana, como Yahoo o CoinGecko
+    assert series.data.index[0] == pd.Timestamp("2024-01-01")
 
 
 def test_missing_key_and_unsupported_frequency(provider: AlphaVantagePriceProvider) -> None:
@@ -91,7 +99,7 @@ def test_missing_key_and_unsupported_frequency(provider: AlphaVantagePriceProvid
         AlphaVantagePriceProvider(api_key="").fetch_prices(
             "IBM", None, None, Frequency.DAILY, AssetType.EQUITY
         )
-    with pytest.raises(ProviderError, match="quarterly"):
+    with pytest.raises(InvalidRequestError, match="quarterly"):
         provider.fetch_prices("IBM", None, None, Frequency.QUARTERLY, AssetType.EQUITY)
 
 

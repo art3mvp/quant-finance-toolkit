@@ -12,25 +12,28 @@ Modos:
 
 La API key se recibe por constructor; el composition root (``bootstrap``) la lee de la
 variable de entorno ``FRED_API_KEY``. Nunca aparece en logs ni en mensajes de error.
+
+El transporte (reintentos, Retry-After, sesión por hilo, ocultación de la clave) es el
+``HttpClient`` común; FRED solo aporta cómo leer sus errores 400.
 """
 
 from __future__ import annotations
 
+import json
 import logging
-import threading
-import time
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
-import numpy as np
 import pandas as pd
-import requests
 
+from toolkit.adapters.outbound._http import HttpClient
+from toolkit.adapters.outbound._periods import infer_frequency, to_series
 from toolkit.domain.errors import (
     ConfigurationError,
     ProviderError,
     SeriesNotFoundError,
+    ToolkitError,
 )
 from toolkit.domain.models import Frequency, MacroSeries
 
@@ -51,8 +54,6 @@ _FREQUENCY_MAP: dict[str, Frequency] = {
 }
 _APPROXIMATED = {"bw", "sa"}
 
-_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
-
 
 class FredMacroProvider:
     """Proveedor de series macroeconómicas desde la API REST de FRED/ALFRED.
@@ -61,30 +62,19 @@ class FredMacroProvider:
         api_key: API key de FRED. Si es ``None`` o vacía, ``fetch_series`` lanza
             ``ConfigurationError``.
         base_url: URL base de la API.
-        timeout: Timeout en segundos de cada petición HTTP.
-        max_retries: Reintentos máximos ante 429, 5xx o errores de conexión.
-        backoff_factor: Espera base del backoff exponencial (``factor * 2**intento``).
-        sleep: Función de espera entre reintentos (por defecto ``time.sleep``).
+        **http_options: Opciones del ``HttpClient`` (``timeout``, ``max_retries``, ``sleep``).
     """
 
     name = "fred"
 
     def __init__(
-        self,
-        api_key: str | None,
-        base_url: str = DEFAULT_BASE_URL,
-        timeout: float = 10.0,
-        max_retries: int = 3,
-        backoff_factor: float = 0.5,
-        sleep: Callable[[float], None] = time.sleep,
+        self, api_key: str | None, base_url: str = DEFAULT_BASE_URL, **http_options: Any
     ) -> None:
         self._api_key = api_key.strip() if api_key else None
         self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.backoff_factor = backoff_factor
-        self._sleep = sleep
-        self._local = threading.local()  # una requests.Session por hilo
+        self._http = HttpClient(
+            self.name, secrets=[self._api_key], error_mapper=map_error, **http_options
+        )
 
     def fetch_series(
         self,
@@ -110,17 +100,17 @@ class FredMacroProvider:
         if as_of is not None:
             realtime = {"realtime_start": as_of.isoformat(), "realtime_end": as_of.isoformat()}
 
-        meta_payload = self._get("series", {"series_id": series_id, **realtime}, series_id)
-        meta = _first_series(meta_payload, series_id)
-
+        meta = _first_series(
+            self._get("series", {"series_id": series_id, **realtime}, series_id), series_id
+        )
         obs_params: dict[str, str] = {"series_id": series_id, **realtime}
         if start is not None:
             obs_params["observation_start"] = start.isoformat()
         if end is not None:
             obs_params["observation_end"] = end.isoformat()
-        obs_payload = self._get("series/observations", obs_params, series_id)
-
-        data = parse_observations(obs_payload, series_id)
+        data = parse_observations(
+            self._get("series/observations", obs_params, series_id), series_id
+        )
         return MacroSeries(
             series_id=series_id,
             name=meta.get("title") or None,
@@ -131,68 +121,25 @@ class FredMacroProvider:
             vintage=as_of,
         )
 
-    # ------------------------------------------------------------------ HTTP
-
-    def _session(self) -> requests.Session:
-        session = getattr(self._local, "session", None)
-        if session is None:
-            session = requests.Session()
-            self._local.session = session
-        return session
-
-    def _get(self, endpoint: str, params: Mapping[str, str], series_id: str) -> dict[str, Any]:
-        """GET con timeout y reintentos con backoff exponencial ante 429/5xx/red."""
-        url = f"{self.base_url}/{endpoint}"
-        full_params = {**params, "api_key": self._api_key, "file_type": "json"}
-        last_error = ""
-        for attempt in range(self.max_retries + 1):
-            try:
-                response = self._session().get(url, params=full_params, timeout=self.timeout)
-            except (requests.ConnectionError, requests.Timeout) as exc:
-                last_error = self._redact(f"error de red: {exc}")
-                retry_after = None
-            except requests.RequestException as exc:
-                raise ProviderError(self._redact(f"fred: {series_id}: {exc}")) from None
-            else:
-                status = response.status_code
-                if status == 200:
-                    try:
-                        return response.json()
-                    except ValueError:
-                        raise ProviderError(f"fred: {series_id}: respuesta no es JSON") from None
-                message = self._redact(_error_message(response))
-                if status in (400, 404):
-                    if "api_key" in message.lower():
-                        raise ConfigurationError(f"fred: API key rechazada: {message}")
-                    raise SeriesNotFoundError(f"fred: serie {series_id} no encontrada: {message}")
-                if status not in _RETRYABLE_STATUS:
-                    raise ProviderError(f"fred: {series_id}: HTTP {status}: {message}")
-                last_error = f"HTTP {status}: {message}"
-                retry_after = _retry_after(response)
-
-            if attempt < self.max_retries:
-                delay = self.backoff_factor * (2**attempt)
-                if retry_after is not None:
-                    delay = max(delay, retry_after)
-                logger.warning(
-                    "fred: %s (%s); reintento %d/%d en %.1fs",
-                    series_id,
-                    last_error,
-                    attempt + 1,
-                    self.max_retries,
-                    delay,
-                )
-                self._sleep(delay)
-        raise ProviderError(
-            f"fred: {series_id}: agotados {self.max_retries} reintentos ({last_error})"
+    def _get(self, endpoint: str, params: Mapping[str, str], series_id: str) -> Any:
+        return self._http.get_json(
+            f"{self.base_url}/{endpoint}",
+            {**params, "api_key": self._api_key, "file_type": "json"},
+            identifier=series_id,
         )
-
-    def _redact(self, text: str) -> str:
-        """Elimina la API key de cualquier texto (las URLs de requests la incluyen)."""
-        return text.replace(self._api_key, "***") if self._api_key else text
 
 
 # ---------------------------------------------------------------------- parsing
+
+
+def map_error(status: int, body: str) -> ToolkitError | None:
+    """FRED responde 400 (o 404) con ``error_message`` para clave inválida y serie inexistente."""
+    if status not in (400, 404):
+        return None
+    message = _error_message(body)
+    if "api_key" in message.lower():
+        return ConfigurationError(f"API key rechazada: {message}")
+    return SeriesNotFoundError(f"serie no encontrada: {message}")
 
 
 def parse_observations(payload: Mapping[str, Any], series_id: str) -> pd.Series:
@@ -204,20 +151,17 @@ def parse_observations(payload: Mapping[str, Any], series_id: str) -> pd.Series:
         SeriesNotFoundError: Si no hay observaciones.
         ProviderError: Si el formato de la respuesta no es el esperado.
     """
-    observations = payload.get("observations")
+    observations = payload.get("observations") if isinstance(payload, Mapping) else None
     if not isinstance(observations, list):
         raise ProviderError(f"fred: {series_id}: respuesta sin 'observations'")
     if not observations:
         raise SeriesNotFoundError(f"fred: {series_id}: sin observaciones en el rango solicitado")
     try:
-        frame = pd.DataFrame(observations, columns=["date", "value"])
-        index = pd.DatetimeIndex(pd.to_datetime(frame["date"], format="%Y-%m-%d"), name="date")
-        values = pd.to_numeric(frame["value"].replace(".", np.nan), errors="raise")
+        dates = [o["date"] for o in observations]
+        values = [None if o["value"] == "." else o["value"] for o in observations]
+        return to_series(dates, values, series_id)
     except (KeyError, ValueError, TypeError) as exc:
         raise ProviderError(f"fred: {series_id}: formato de observaciones inválido: {exc}") from exc
-    series = pd.Series(values.to_numpy(dtype=float), index=index, name=series_id)
-    series = series.sort_index()
-    return series[~series.index.duplicated(keep="last")]
 
 
 def map_frequency(code: str | None, index: pd.DatetimeIndex, series_id: str) -> Frequency:
@@ -236,32 +180,16 @@ def map_frequency(code: str | None, index: pd.DatetimeIndex, series_id: str) -> 
                 _FREQUENCY_MAP[key].value,
             )
         return _FREQUENCY_MAP[key]
-    inferred = _infer_frequency(index)
+    inferred = infer_frequency(index)
     logger.warning(
         "fred: %s frecuencia desconocida %r; inferida %s", series_id, code, inferred.value
     )
     return inferred
 
 
-def _infer_frequency(index: pd.DatetimeIndex) -> Frequency:
-    """Infiere la frecuencia a partir del número mediano de días entre observaciones."""
-    if len(index) < 2:
-        return Frequency.DAILY
-    median_days = float(np.median(np.diff(index.values).astype("timedelta64[D]").astype(float)))
-    if median_days <= 4:
-        return Frequency.DAILY
-    if median_days <= 16:
-        return Frequency.WEEKLY
-    if median_days <= 45:
-        return Frequency.MONTHLY
-    if median_days <= 135:
-        return Frequency.QUARTERLY
-    return Frequency.ANNUAL
-
-
 def _first_series(payload: Mapping[str, Any], series_id: str) -> Mapping[str, Any]:
     """Extrae el primer elemento de ``seriess`` de la respuesta de ``/fred/series``."""
-    items = payload.get("seriess")
+    items = payload.get("seriess") if isinstance(payload, Mapping) else None
     if not isinstance(items, list) or not items:
         raise SeriesNotFoundError(f"fred: serie {series_id} sin metadatos")
     first = items[0]
@@ -270,21 +198,12 @@ def _first_series(payload: Mapping[str, Any], series_id: str) -> Mapping[str, An
     return first
 
 
-def _error_message(response: requests.Response) -> str:
+def _error_message(body: str) -> str:
     """Extrae ``error_message`` del cuerpo JSON de error de FRED (o el texto plano)."""
     try:
-        body = response.json()
+        payload = json.loads(body)
     except ValueError:
-        return response.text[:200]
-    if isinstance(body, Mapping) and body.get("error_message"):
-        return str(body["error_message"])
-    return str(body)[:200]
-
-
-def _retry_after(response: requests.Response) -> float | None:
-    """Lee la cabecera ``Retry-After`` (en segundos) si existe y es numérica."""
-    value = response.headers.get("Retry-After")
-    try:
-        return float(value) if value is not None else None
-    except ValueError:
-        return None
+        return body[:200]
+    if isinstance(payload, Mapping) and payload.get("error_message"):
+        return str(payload["error_message"])
+    return str(payload)[:200]

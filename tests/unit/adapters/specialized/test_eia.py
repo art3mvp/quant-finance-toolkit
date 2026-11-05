@@ -5,14 +5,18 @@ from __future__ import annotations
 import math
 from datetime import date
 
-import pandas as pd
 import pytest
 import responses
 from responses import matchers
 
 from toolkit.adapters.outbound.specialized import eia
-from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider, parse_period, parse_rows
-from toolkit.domain.errors import ConfigurationError, ProviderError, SeriesNotFoundError
+from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider, parse_rows
+from toolkit.domain.errors import (
+    ConfigurationError,
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+)
 from toolkit.domain.models import Frequency, MacroSeries
 from toolkit.ports.outbound import MacroProvider
 
@@ -93,7 +97,7 @@ def test_missing_api_key_raises_configuration_error() -> None:
 
 
 def test_as_of_is_not_supported(provider: EiaMacroProvider) -> None:
-    with pytest.raises(ProviderError, match="vintages"):
+    with pytest.raises(InvalidRequestError, match="vintages"):
         provider.fetch_series("PET.RWTC.D", None, None, date(2020, 1, 1))
 
 
@@ -122,21 +126,19 @@ def test_empty_or_malformed_responses(provider: EiaMacroProvider) -> None:
         provider.fetch_series("PET.RWTC.D", None, None, None)
 
 
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("2024-01-02", "2024-01-02"),
-        ("2024-03", "2024-03-01"),
-        ("2024-Q2", "2024-04-01"),
-        ("2024", "2024-01-01"),
-    ],
-)
-def test_parse_period(text: str, expected: str) -> None:
-    assert parse_period(text) == pd.Timestamp(expected)
+def test_parse_rows_normalizes_every_eia_period_format() -> None:
+    periods = ["2024", "2024-Q2", "2024-03", "2024-01-02"]
+    data = parse_rows([{"period": p, "value": 1.0} for p in periods], "X")
+    assert data.index.strftime("%Y-%m-%d").tolist() == [
+        "2024-01-01",
+        "2024-01-02",
+        "2024-03-01",
+        "2024-04-01",
+    ]
 
 
 def test_parse_rows_rejects_garbage() -> None:
     with pytest.raises(ProviderError):
-        parse_rows([{"period": "yesterday", "value": 1}], "X")
+        parse_rows([{"period": "not-a-date", "value": 1}], "X")
     with pytest.raises(ProviderError):
         parse_rows([{"period": "2024-01-01", "value": "abc"}], "X")

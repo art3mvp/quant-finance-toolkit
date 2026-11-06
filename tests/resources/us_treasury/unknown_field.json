@@ -1,0 +1,30 @@
+{
+ "source": "us_treasury",
+ "case": "unknown_field",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "v2/accounting/od/debt_to_penny:no_existe_amt": "us_treasury: v2/accounting/od/debt_to_penny:no_existe_amt: no encontrado: Invalid query parameter: Field 'no_existe_amt' does not exist."
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/debt_to_penny",
+   "query": {
+    "fields": "record_date,no_existe_amt",
+    "sort": "record_date",
+    "filter": "record_date:gte:2024-01-01,record_date:lte:2024-01-31",
+    "page[number]": "1",
+    "page[size]": "10000"
+   },
+   "status": 400,
+   "content_type": "application/json",
+   "json": {
+    "error": "Invalid Query Param",
+    "message": "Invalid query parameter: Field 'no_existe_amt' does not exist. For more information, please see the documentation."
+   }
+  }
+ ]
+}

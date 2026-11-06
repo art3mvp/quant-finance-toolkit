@@ -1,0 +1,36 @@
+{
+ "source": "world_bank",
+ "case": "unknown_indicator",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "ESP/NO.EXISTE.123": "world_bank: ESP/NO.EXISTE.123: The provided parameter value is not valid"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.worldbank.org/v2/country/ESP/indicator/NO.EXISTE.123",
+   "query": {
+    "format": "json",
+    "per_page": "20000",
+    "date": "2015:2023",
+    "page": "1"
+   },
+   "status": 200,
+   "content_type": "application/json;charset=utf-8",
+   "json": [
+    {
+     "message": [
+      {
+       "id": "120",
+       "key": "Invalid value",
+       "value": "The provided parameter value is not valid"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

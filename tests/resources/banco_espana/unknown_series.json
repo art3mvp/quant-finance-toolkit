@@ -1,0 +1,29 @@
+{
+ "source": "banco_espana",
+ "case": "unknown_series",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "NOEXISTE123": "banco_espana: NOEXISTE123: no encontrado (HTTP 412)"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://app.bde.es/bierest/resources/srdatosapp/listaSeries",
+   "query": {
+    "idioma": "es",
+    "series": "NOEXISTE123",
+    "rango": "MAX"
+   },
+   "status": 412,
+   "content_type": "application/json;charset=UTF-8",
+   "json": {
+    "errNum": 412,
+    "errMsgUsr": "Error de validación en la solicitud",
+    "errMsgDebug": "La serie NOEXISTE123 no existe"
+   }
+  }
+ ]
+}

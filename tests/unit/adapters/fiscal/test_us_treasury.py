@@ -139,10 +139,42 @@ def test_errors(provider: UsTreasuryMacroProvider) -> None:
         provider.fetch_series(sid, None, None, None)
     with pytest.raises(SeriesNotFoundError):
         provider.fetch_series(sid, None, None, None)
-    with pytest.raises(ProviderError):
+    with pytest.raises(ProviderError, match="HTTP 400: Invalid Query Param") as excinfo:
         provider.fetch_series(sid, None, None, None)
+    assert type(excinfo.value) is ProviderError
     with pytest.raises(InvalidRequestError, match="vintages"):
         provider.fetch_series(sid, None, None, date(2020, 1, 1))
+
+
+@pytest.mark.parametrize(
+    ("body", "error", "message"),
+    [
+        # cuerpo real: campo de la serie o del filtro inexistente
+        (
+            {
+                "error": "Invalid Query Param",
+                "message": "Invalid query parameter: Field 'no_existe_amt' does not exist. "
+                "For more information, please see the documentation.",
+            },
+            SeriesNotFoundError,
+            r"no encontrado: Invalid query parameter: Field 'no_existe_amt' does not exist\.$",
+        ),
+        (
+            {"error": "Invalid Query Param", "message": "Invalid filter operator 'xx'."},
+            ProviderError,
+            r"HTTP 400: Invalid filter operator 'xx'\.$",
+        ),
+    ],
+    ids=["field-does-not-exist", "other-400"],
+)
+@responses.activate
+def test_400_uses_the_message_from_the_body(
+    provider: UsTreasuryMacroProvider, body: dict, error: type[Exception], message: str
+) -> None:
+    responses.get(DEBT_URL, status=400, json=body)
+    with pytest.raises(error, match=message) as excinfo:
+        provider.fetch_series("v2/accounting/od/debt_to_penny:no_existe_amt", None, None, None)
+    assert type(excinfo.value) is error
 
 
 @pytest.mark.parametrize("bad", ["debt_to_penny", ":field", "e:f:nofilter", "e:f:=v", "e:f:k="])

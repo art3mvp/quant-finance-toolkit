@@ -1,0 +1,25 @@
+{
+ "source": "eurostat",
+ "case": "no_data_in_range",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "prc_hicp_manr/M.RCH_A.CP00.ES": "eurostat: prc_hicp_manr/M.RCH_A.CP00.ES: no encontrado: TIME_PERIOD: >=1900-01-01 and <=1900-12-31"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/PRC_HICP_MANR/M.RCH_A.CP00.ES",
+   "query": {
+    "format": "SDMX-CSV",
+    "startPeriod": "1900-01-01",
+    "endPeriod": "1900-12-31"
+   },
+   "status": 400,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><S:Fault xmlns:S=\"http://schemas.xmlsoap.org/soap/envelope/\"><faultcode>150</faultcode><faultstring>INVALID_QUERY_DIMENSION_VALUE: Query is invalid as per its structure&apos;s definition. The following values for dimension are not allowed: TIME_PERIOD: &gt;=1900-01-01 and &lt;=1900-12-31.</faultstring></S:Fault>"
+  }
+ ]
+}

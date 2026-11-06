@@ -1,0 +1,33 @@
+{
+ "source": "twelve_data",
+ "case": "unknown_ticker",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "NOEXISTE123": "twelve_data: NOEXISTE123: no encontrado (HTTP 404)"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.twelvedata.com/time_series",
+   "query": {
+    "symbol": "NOEXISTE123",
+    "interval": "1day",
+    "outputsize": "5000",
+    "order": "asc",
+    "apikey": "<TWELVE_DATA_API_KEY>",
+    "start_date": "2024-01-02",
+    "end_date": "2024-02-01"
+   },
+   "status": 404,
+   "content_type": "application/json; charset=utf-8",
+   "json": {
+    "code": 404,
+    "message": "**symbol** or **figi** parameter is missing or invalid. Please provide a valid symbol according to API documentation: https://twelvedata.com/docs#reference-data",
+    "status": "error"
+   }
+  }
+ ]
+}

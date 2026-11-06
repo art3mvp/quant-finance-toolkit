@@ -1,0 +1,25 @@
+{
+ "source": "eurostat",
+ "case": "unknown_dataset",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "no_existe_123/M.RCH_A.CP00.ES": "eurostat: no_existe_123/M.RCH_A.CP00.ES: no encontrado: ERR_NOT_FOUND_2: DATA_SET:NO_EXISTE_123 is not available for dissemination."
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/NO_EXISTE_123/M.RCH_A.CP00.ES",
+   "query": {
+    "format": "SDMX-CSV",
+    "startPeriod": "2023-01-01",
+    "endPeriod": "2023-12-31"
+   },
+   "status": 404,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><S:Fault xmlns:S=\"http://schemas.xmlsoap.org/soap/envelope/\"><faultcode>100</faultcode><faultstring>ERR_NOT_FOUND_2: DATA_SET:NO_EXISTE_123 is not available for dissemination.</faultstring></S:Fault>"
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+ "source": "us_treasury",
+ "case": "unknown_endpoint",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "v2/accounting/od/no_existe:record_amt": "us_treasury: v2/accounting/od/no_existe:record_amt: no encontrado (HTTP 404)"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/no_existe",
+   "query": {
+    "fields": "record_date,record_amt",
+    "sort": "record_date",
+    "filter": "record_date:gte:2024-01-01,record_date:lte:2024-01-31",
+    "page[number]": "1",
+    "page[size]": "10000"
+   },
+   "status": 404,
+   "content_type": "text/html",
+   "text": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <base href=\"/\">\n</head>\n<body>\n\n<h1>404 Error: The requested page could not be found</h1>\n<p>We are sorry, but the page you are looking for may not exist, may have been removed, had its name changed, or is temporarily unavailable.</p>\n<p>To help you find what you are looking for, please try one or more of the following:</p>\n<ol>\n    <li>Check the URL (Web address) for proper spelling and completeness. </li>\n    <li><a href=\"mailto:fiscaldata@fiscal.treasury.gov?subject=Contact Us\" class=\"primary\" data-testid=\"mail-to link\">Contact Us for help</a> </li>\n    <li><a href=\"https://fiscaldata.treasury.gov/api-documentation/ \" target=\"_blank\">Read API Documentation</a></li>\n</ol>\n\n</body>\n</html>"
+  }
+ ]
+}

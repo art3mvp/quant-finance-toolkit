@@ -1,0 +1,29 @@
+{
+ "source": "eurostat",
+ "case": "hicp_spain",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {
+   "prc_hicp_manr/M.RCH_A.CP00.ES": {
+    "n_obs": 12,
+    "start": "2023-01-01",
+    "end": "2023-12-01"
+   }
+  },
+  "errors": {}
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/PRC_HICP_MANR/M.RCH_A.CP00.ES",
+   "query": {
+    "format": "SDMX-CSV",
+    "startPeriod": "2023-01-01",
+    "endPeriod": "2023-12-31"
+   },
+   "status": 200,
+   "content_type": "application/vnd.sdmx.data+csv;version=1.0.0",
+   "text": "DATAFLOW,LAST UPDATE,freq,unit,coicop,geo,TIME_PERIOD,OBS_VALUE,OBS_FLAG,CONF_STATUS\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-01,5.9,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-02,6.0,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-03,3.1,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-04,3.8,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-05,2.9,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-06,1.6,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-07,2.1,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-08,2.4,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-09,3.3,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-10,3.5,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-11,3.3,,\r\nESTAT:PRC_HICP_MANR(1.0),06/02/26 23:00:00,M,RCH_A,CP00,ES,2023-12,3.3,,\r\n"
+  }
+ ]
+}

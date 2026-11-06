@@ -1,0 +1,185 @@
+{
+ "source": "world_bank",
+ "case": "gdp_spain",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {
+   "ESP/NY.GDP.MKTP.CD": {
+    "n_obs": 9,
+    "start": "2015-01-01",
+    "end": "2023-01-01"
+   }
+  },
+  "errors": {}
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.worldbank.org/v2/country/ESP/indicator/NY.GDP.MKTP.CD",
+   "query": {
+    "format": "json",
+    "per_page": "20000",
+    "date": "2015:2023",
+    "page": "1"
+   },
+   "status": 200,
+   "content_type": "application/json;charset=utf-8",
+   "json": [
+    {
+     "page": 1,
+     "pages": 1,
+     "per_page": 20000,
+     "total": 9,
+     "sourceid": "2",
+     "lastupdated": "2026-10-08"
+    },
+    [
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2023",
+      "value": 1619481980719.64,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2022",
+      "value": 1448850658406.62,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2021",
+      "value": 1461244901852.69,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2020",
+      "value": 1289783836971.21,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2019",
+      "value": 1403496387686.27,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2018",
+      "value": 1431642809327.06,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2017",
+      "value": 1321754088818.83,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2016",
+      "value": 1243015667917.12,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NY.GDP.MKTP.CD",
+       "value": "GDP (current US$)"
+      },
+      "country": {
+       "id": "ES",
+       "value": "Spain"
+      },
+      "countryiso3code": "ESP",
+      "date": "2015",
+      "value": 1206164777553.12,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     }
+    ]
+   ]
+  }
+ ]
+}

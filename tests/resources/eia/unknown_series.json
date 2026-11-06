@@ -1,0 +1,28 @@
+{
+ "source": "eia",
+ "case": "unknown_series",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "PET.NOEXISTE.D": "eia: PET.NOEXISTE.D: no encontrado (HTTP 404)"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.eia.gov/v2/seriesid/PET.NOEXISTE.D",
+   "query": {
+    "api_key": "<EIA_API_KEY>",
+    "offset": "0",
+    "length": "5000"
+   },
+   "status": 404,
+   "content_type": "application/json",
+   "json": {
+    "error": "Series ID 'PET.NOEXISTE.D' is not valid.",
+    "code": 404
+   }
+  }
+ ]
+}

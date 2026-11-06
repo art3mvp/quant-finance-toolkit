@@ -1,0 +1,31 @@
+{
+ "source": "ecb",
+ "case": "unknown_series",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "EXR/D.XXX.EUR.SP00.A": "ecb: EXR/D.XXX.EUR.SP00.A: no encontrado (HTTP 404)"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://data-api.ecb.europa.eu/service/data/EXR/D.XXX.EUR.SP00.A",
+   "query": {
+    "format": "csvdata",
+    "startPeriod": "2024-01-01",
+    "endPeriod": "2024-01-31"
+   },
+   "status": 404,
+   "content_type": "application/problem+json",
+   "json": {
+    "type": "/service/data/EXR/D.XXX.EUR.SP00.A",
+    "title": "Not Found",
+    "status": 404,
+    "detail": "No Series was returned for the query: <?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><DataQuery dataflowId=\"EXR\" startPeriod=\"2024-01-01\" endPeriod=\"2024-01-31\" detail=\"FULL\" type=\"SINGLE_QUERY\" includeHistory=\"false\"><SeriesKeys><SeriesKey>D.XXX.EUR.SP00.A</SeriesKey></SeriesKeys></DataQuery>",
+    "instance": "/service/data/EXR/D.XXX.EUR.SP00.A"
+   }
+  }
+ ]
+}

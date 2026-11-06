@@ -1,0 +1,29 @@
+{
+ "source": "ecb",
+ "case": "eurusd_daily",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {
+   "EXR/D.USD.EUR.SP00.A": {
+    "n_obs": 22,
+    "start": "2024-01-02",
+    "end": "2024-01-31"
+   }
+  },
+  "errors": {}
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A",
+   "query": {
+    "format": "csvdata",
+    "startPeriod": "2024-01-01",
+    "endPeriod": "2024-01-31"
+   },
+   "status": 200,
+   "content_type": "text/csv",
+   "text": "KEY,FREQ,CURRENCY,CURRENCY_DENOM,EXR_TYPE,EXR_SUFFIX,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK,OBS_COM,TIME_FORMAT,BREAKS,COLLECTION,COMPILING_ORG,DISS_ORG,DOM_SER_IDS,PUBL_ECB,PUBL_MU,PUBL_PUBLIC,UNIT_INDEX_BASE,COMPILATION,COVERAGE,DECIMALS,NAT_TITLE,SOURCE_AGENCY,SOURCE_PUB,TITLE,TITLE_COMPL,UNIT,UNIT_MULT\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-02,1.0956,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-03,1.0919,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-04,1.0953,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-05,1.0921,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-08,1.0946,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-09,1.094,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-10,1.0946,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-11,1.0987,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-12,1.0942,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-15,1.0945,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-16,1.0882,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-17,1.0877,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-18,1.0875,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-19,1.0887,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-22,1.089,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-23,1.0872,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-24,1.0905,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-25,1.0893,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-26,1.0871,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-29,1.0823,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-30,1.0846,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2024-01-31,1.0837,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\n"
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+ "source": "coingecko",
+ "case": "unknown_coin",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "noexiste-123": "coingecko: noexiste-123: no encontrado (HTTP 404)"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.coingecko.com/api/v3/coins/noexiste-123/market_chart",
+   "query": {
+    "vs_currency": "usd",
+    "days": "37",
+    "interval": "daily"
+   },
+   "status": 404,
+   "content_type": "application/json; charset=utf-8",
+   "json": {
+    "error": "coin not found"
+   }
+  }
+ ]
+}

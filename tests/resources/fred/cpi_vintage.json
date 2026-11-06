@@ -1,0 +1,186 @@
+{
+ "source": "fred",
+ "case": "cpi_vintage",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {
+   "CPIAUCSL": {
+    "n_obs": 17,
+    "start": "2014-01-01",
+    "end": "2015-05-01"
+   }
+  },
+  "errors": {}
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.stlouisfed.org/fred/series",
+   "query": {
+    "series_id": "CPIAUCSL",
+    "realtime_start": "2015-06-30",
+    "realtime_end": "2015-06-30",
+    "api_key": "<FRED_API_KEY>",
+    "file_type": "json"
+   },
+   "status": 200,
+   "content_type": "application/json; charset=UTF-8",
+   "json": {
+    "realtime_start": "2015-06-30",
+    "realtime_end": "2015-06-30",
+    "seriess": [
+     {
+      "id": "CPIAUCSL",
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "title": "Consumer Price Index for All Urban Consumers: All Items",
+      "observation_start": "1947-01-01",
+      "observation_end": "2015-05-01",
+      "frequency": "Monthly",
+      "frequency_short": "M",
+      "units": "Index 1982-1984=100",
+      "units_short": "Index 1982-1984=100",
+      "seasonal_adjustment": "Seasonally Adjusted",
+      "seasonal_adjustment_short": "SA",
+      "last_updated": "2015-06-18 08:01:07-05",
+      "popularity": 97,
+      "notes": "The Consumer Price Index for All Urban Consumers: All Items (CPIAUCSL) is a price index of a basket of goods and services paid by urban consumers. Percent changes in the price index measure the inflation rate between any two time periods. The most common inflation metric is the percent change from one year ago. It can also represent the buying habits of urban consumers. This particular index includes roughly 88 percent of the total population, accounting for wage earners, clerical workers, technical workers, self-employed, short-term workers, unemployed, retirees, and those not in the labor force.\r\n\r\nThe CPIs are based on prices for food, clothing, shelter, and fuels; transportation fares; service fees (e.g., water and sewer service); and sales taxes. Prices are collected monthly from about 4,000 housing units and approximately 26,000 retail establishments across 87 urban areas. To calculate the index, price changes are averaged with weights representing their importance in the spending of the particular group. The index measures price changes (as a percent change) from a predetermined reference date. In addition to the original unadjusted index distributed, the Bureau of Labor Statistics also releases a seasonally adjusted index. The unadjusted series reflects all factors that may influence a change in prices. However, it can be very useful to look at the seasonally adjusted CPI, which removes the effects of seasonal changes, such as weather, school year, production cycles, and holidays.\r\n\r\nThe CPI can be used to recognize periods of inflation and deflation. Significant increases in the CPI within a short time frame might indicate a period of inflation, and significant decreases in CPI within a short time frame might indicate a period of deflation. However, because the CPI includes volatile food and oil prices, it might not be a reliable measure of inflationary and deflationary periods. For a more accurate detection, the core CPI (CPILFESL (https://fred.stlouisfed.org/series/CPILFESL)) is often used. When using the CPI, please note that it is not applicable to all consumers and should not be used to determine relative living costs. Additionally, the CPI is a statistical measure vulnerable to sampling error since it is based on a sample of prices and not the complete average.\r\n\r\nFor more information on the consumer price indexes, see:  \r\nBureau of Economic Analysis. \"CPI Detailed Report.\" (https://www.bls.gov/cpi/) 2013.  \r\nHandbook of Methods (https://www.bls.gov/opub/hom/pdf/cpihom.pdf)  \r\nUnderstanding the CPI: Frequently Asked Questions (https://www.bls.gov/cpi/questions-and-answers.htm)"
+     }
+    ]
+   }
+  },
+  {
+   "method": "GET",
+   "url": "https://api.stlouisfed.org/fred/series/observations",
+   "query": {
+    "series_id": "CPIAUCSL",
+    "realtime_start": "2015-06-30",
+    "realtime_end": "2015-06-30",
+    "observation_start": "2014-01-01",
+    "observation_end": "2015-06-30",
+    "api_key": "<FRED_API_KEY>",
+    "file_type": "json"
+   },
+   "status": 200,
+   "content_type": "application/json; charset=UTF-8",
+   "json": {
+    "realtime_start": "2015-06-30",
+    "realtime_end": "2015-06-30",
+    "observation_start": "2014-01-01",
+    "observation_end": "2015-06-30",
+    "units": "lin",
+    "output_type": 1,
+    "file_type": "json",
+    "order_by": "observation_date",
+    "sort_order": "asc",
+    "count": 17,
+    "offset": 0,
+    "limit": 100000,
+    "observations": [
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-01-01",
+      "value": "235.128"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-02-01",
+      "value": "235.356"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-03-01",
+      "value": "235.790"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-04-01",
+      "value": "236.240"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-05-01",
+      "value": "236.950"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-06-01",
+      "value": "237.348"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-07-01",
+      "value": "237.596"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-08-01",
+      "value": "237.409"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-09-01",
+      "value": "237.626"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-10-01",
+      "value": "237.753"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-11-01",
+      "value": "237.067"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2014-12-01",
+      "value": "236.284"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2015-01-01",
+      "value": "234.677"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2015-02-01",
+      "value": "235.186"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2015-03-01",
+      "value": "235.740"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2015-04-01",
+      "value": "235.982"
+     },
+     {
+      "realtime_start": "2015-06-30",
+      "realtime_end": "2015-06-30",
+      "date": "2015-05-01",
+      "value": "237.031"
+     }
+    ]
+   }
+  }
+ ]
+}

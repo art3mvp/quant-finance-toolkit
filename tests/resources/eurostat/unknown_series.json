@@ -1,0 +1,25 @@
+{
+ "source": "eurostat",
+ "case": "unknown_series",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "prc_hicp_manr/M.RCH_A.CP00.XX": "eurostat: prc_hicp_manr/M.RCH_A.CP00.XX: no encontrado: GEO=XX"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/PRC_HICP_MANR/M.RCH_A.CP00.XX",
+   "query": {
+    "format": "SDMX-CSV",
+    "startPeriod": "2023-01-01",
+    "endPeriod": "2023-12-31"
+   },
+   "status": 400,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><S:Fault xmlns:S=\"http://schemas.xmlsoap.org/soap/envelope/\"><faultcode>150</faultcode><faultstring>INVALID_QUERY_DIMENSION_VALUE: Query is invalid as per its structure&apos;s definition. The following values for dimension are not allowed: GEO=XX.</faultstring></S:Fault>"
+  }
+ ]
+}

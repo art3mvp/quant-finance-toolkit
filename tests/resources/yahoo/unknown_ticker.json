@@ -1,0 +1,37 @@
+{
+ "source": "yahoo",
+ "case": "unknown_ticker",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "NOEXISTE123": "yahoo: sin datos para NOEXISTE123 en el rango solicitado"
+  }
+ },
+ "yahoo": [
+  {
+   "symbol": "NOEXISTE123",
+   "history_kwargs": {
+    "interval": "1d",
+    "auto_adjust": false,
+    "actions": false,
+    "timeout": 30.0,
+    "start": "2024-01-02",
+    "end": "2024-02-01"
+   },
+   "history": {
+    "tz": null,
+    "index": [],
+    "columns": [
+     "Open",
+     "High",
+     "Low",
+     "Close",
+     "Adj Close",
+     "Volume"
+    ],
+    "data": []
+   }
+  }
+ ]
+}

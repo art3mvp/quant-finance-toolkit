@@ -6,7 +6,7 @@ import pytest
 import responses
 
 from toolkit.adapters.outbound.macro.eurostat import EurostatMacroProvider
-from toolkit.domain.errors import ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import InvalidRequestError, ProviderError, SeriesNotFoundError
 from toolkit.domain.models import Frequency
 from toolkit.ports.outbound import MacroProvider
 
@@ -33,10 +33,48 @@ def test_fetches_hicp_with_lowercase_dimension_columns() -> None:
     assert series.data.tolist() == [3.5, 2.9]
 
 
+def fault(code: str, text: str) -> str:
+    """Cuerpo de error real de Eurostat (fallo SOAP), con el escapado XML incluido."""
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?><S:Fault xmlns:S="http://schemas.xmlsoap.org/'
+        f'soap/envelope/"><faultcode>{code}</faultcode><faultstring>{text}</faultstring></S:Fault>'
+    )
+
+
+VALUE_NOT_ALLOWED = (
+    "INVALID_QUERY_DIMENSION_VALUE: Query is invalid as per its structure&apos;s definition. "
+    "The following values for dimension are not allowed: GEO=XX."
+)
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "error", "message"),
+    [
+        (400, fault("150", VALUE_NOT_ALLOWED), SeriesNotFoundError, "no encontrado: GEO=XX$"),
+        (
+            404,
+            fault("100", "ERR_NOT_FOUND_2: DATA_SET:X is not available for dissemination."),
+            SeriesNotFoundError,
+            "DATA_SET:X is not available",
+        ),
+        (
+            400,
+            fault("140", "INVALID_QUERY_NB_FILTERS: Incorrect number of filters"),
+            InvalidRequestError,
+            "clave mal formada",
+        ),
+        (400, fault("999", "OTRO_FALLO: algo"), ProviderError, r"fallo 999\): OTRO_FALLO"),
+        (400, "Bad Request", ProviderError, "HTTP 400: Bad Request"),  # sin fallo SOAP
+    ],
+    ids=["value-not-allowed", "unknown-dataset", "malformed-key", "other-fault", "no-fault"],
+)
 @responses.activate
-def test_invalid_dimension_is_provider_error() -> None:
+def test_fault_codes_are_translated(
+    status: int, body: str, error: type[Exception], message: str
+) -> None:
     provider = EurostatMacroProvider(sleep=lambda _: None)
-    responses.get(URL, status=400, body="INVALID_QUERY_DIMENSION_VALUE: GEO=XX")
-    with pytest.raises(ProviderError) as excinfo:
+    responses.get(URL, status=status, body=body, content_type="application/xml")
+    with pytest.raises(error, match=message) as excinfo:
         provider.fetch_series("PRC_HICP_MANR/M.RCH_A.CP00.ES", None, None, None)
-    assert not isinstance(excinfo.value, SeriesNotFoundError)
+    assert type(excinfo.value) is error
+    assert "<?xml" not in str(excinfo.value)  # el motivo, nunca el XML de la respuesta

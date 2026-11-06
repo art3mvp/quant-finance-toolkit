@@ -1,0 +1,25 @@
+{
+ "source": "bis",
+ "case": "unknown_series",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "WS_CBPOL/M.XX": "bis: WS_CBPOL/M.XX: no encontrado (HTTP 404)"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://stats.bis.org/api/v1/data/WS_CBPOL/M.XX",
+   "query": {
+    "format": "csv",
+    "startPeriod": "2023-01-01",
+    "endPeriod": "2023-12-31"
+   },
+   "status": 404,
+   "content_type": "application/xml;charset=UTF-8",
+   "text": "<?xml version=\"1.0\" ?>\n<message:Error xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:message=\"http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message\" xmlns:com=\"http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common\">\n  <message:ErrorMessage code=\"100\">\n    <com:Text>No data for data query against the dataflow: urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=BIS:WS_CBPOL(1.0)</com:Text>\n  </message:ErrorMessage>\n</message:Error>"
+  }
+ ]
+}

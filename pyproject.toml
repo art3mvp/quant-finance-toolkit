@@ -25,6 +25,7 @@ dev = [
     "ruff>=0.5",
     "responses>=0.25",
     "matplotlib>=3.8",
+    "pyarrow>=15.0",
 ]
 parquet = ["pyarrow>=15.0"]
 
@@ -37,10 +38,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-ra -m 'not network'"
-markers = [
-    "network: tests que acceden a Internet (excluidos por defecto; ejecutar con -m network)",
-]
+addopts = "-ra"
 
 [tool.ruff]
 line-length = 100

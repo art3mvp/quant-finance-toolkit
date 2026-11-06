@@ -8,7 +8,8 @@ La clave debe fijar **todas** las dimensiones (una sola serie); si la consulta d
 varias (comodines o ``+``), se rechaza para no mezclar series en una ``MacroSeries``.
 
 Verificado contra los tres servicios: aceptan ``startPeriod``/``endPeriod`` en ISO
-(``YYYY-MM-DD``) para cualquier frecuencia y devuelven 404 si no hay datos.
+(``YYYY-MM-DD``) para cualquier frecuencia. BCE y BIS devuelven 404 si no hay datos;
+Eurostat responde 400 con un código de fallo propio, que traduce con ``map_error``.
 """
 
 from __future__ import annotations
@@ -22,7 +23,12 @@ import pandas as pd
 
 from toolkit.adapters.outbound._http import HttpClient
 from toolkit.adapters.outbound._periods import frequency_from_code, to_series
-from toolkit.domain.errors import InvalidRequestError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+    ToolkitError,
+)
 from toolkit.domain.models import MacroSeries
 
 
@@ -45,7 +51,16 @@ class SdmxMacroProvider:
 
     def __init__(self, base_url: str | None = None, **http_options: Any) -> None:
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
-        self._http = HttpClient(self.name, **http_options)
+        self._http = HttpClient(self.name, error_mapper=self.map_error, **http_options)
+
+    @staticmethod
+    def map_error(status: int, body: str) -> ToolkitError | None:
+        """Traducción propia de la API para estados no reintentables.
+
+        ``None`` aplica el mapeo estándar de ``HttpClient`` (404 → ``SeriesNotFoundError``).
+        Las subclases la redefinen si su API codifica el motivo en el cuerpo.
+        """
+        return None
 
     def fetch_series(
         self,

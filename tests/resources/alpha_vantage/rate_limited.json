@@ -1,0 +1,27 @@
+{
+ "source": "alpha_vantage",
+ "case": "rate_limited",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "NOEXISTE123": "alpha_vantage: NOEXISTE123: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://www.alphavantage.co/query",
+   "query": {
+    "function": "TIME_SERIES_WEEKLY",
+    "symbol": "NOEXISTE123",
+    "apikey": "<ALPHA_VANTAGE_API_KEY>"
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "json": {
+    "Information": "Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints"
+   }
+  }
+ ]
+}

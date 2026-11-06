@@ -1,0 +1,571 @@
+{
+ "source": "us_treasury",
+ "case": "bills_avg_rate",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {
+   "v2/accounting/od/avg_interest_rates:avg_interest_rate_amt:security_desc=Treasury Bills": {
+    "n_obs": 6,
+    "start": "2024-01-01",
+    "end": "2024-06-01"
+   }
+  },
+  "errors": {}
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates",
+   "query": {
+    "fields": "record_date,avg_interest_rate_amt,security_desc",
+    "sort": "record_date",
+    "filter": "record_date:gte:2024-01-01,record_date:lte:2024-06-30",
+    "page[number]": "1",
+    "page[size]": "10000"
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "json": {
+    "data": [
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "5.411",
+      "security_desc": "Treasury Bills"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "2.340",
+      "security_desc": "Treasury Notes"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "3.106",
+      "security_desc": "Treasury Bonds"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "0.648",
+      "security_desc": "Treasury Inflation-Protected Securities (TIPS)"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "5.543",
+      "security_desc": "Treasury Floating Rate Notes (FRN)"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "2.513",
+      "security_desc": "Federal Financing Bank"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "3.211",
+      "security_desc": "Total Marketable"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "7.577",
+      "security_desc": "Domestic Series"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "4.066",
+      "security_desc": "Special Purpose Vehicle"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "0.000",
+      "security_desc": "Foreign Series"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "3.380",
+      "security_desc": "State and Local Government Series"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "3.383",
+      "security_desc": "United States Savings Securities"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "4.732",
+      "security_desc": "United States Savings Inflation Securities"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "2.904",
+      "security_desc": "Government Account Series"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "1.137",
+      "security_desc": "Government Account Series Inflation Securities"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "2.921",
+      "security_desc": "Total Non-marketable"
+     },
+     {
+      "record_date": "2024-01-31",
+      "avg_interest_rate_amt": "3.153",
+      "security_desc": "Total Interest-bearing Debt"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "5.384",
+      "security_desc": "Treasury Bills"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "2.394",
+      "security_desc": "Treasury Notes"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "3.119",
+      "security_desc": "Treasury Bonds"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "0.655",
+      "security_desc": "Treasury Inflation-Protected Securities (TIPS)"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "5.417",
+      "security_desc": "Treasury Floating Rate Notes (FRN)"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "2.513",
+      "security_desc": "Federal Financing Bank"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "3.259",
+      "security_desc": "Total Marketable"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "7.577",
+      "security_desc": "Domestic Series"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "4.106",
+      "security_desc": "Special Purpose Vehicle"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "0.000",
+      "security_desc": "Foreign Series"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "3.397",
+      "security_desc": "State and Local Government Series"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "3.412",
+      "security_desc": "United States Savings Securities"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "4.812",
+      "security_desc": "United States Savings Inflation Securities"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "2.924",
+      "security_desc": "Government Account Series"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "1.137",
+      "security_desc": "Government Account Series Inflation Securities"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "2.941",
+      "security_desc": "Total Non-marketable"
+     },
+     {
+      "record_date": "2024-02-29",
+      "avg_interest_rate_amt": "3.195",
+      "security_desc": "Total Interest-bearing Debt"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "5.369",
+      "security_desc": "Treasury Bills"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "2.417",
+      "security_desc": "Treasury Notes"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "3.125",
+      "security_desc": "Treasury Bonds"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "0.665",
+      "security_desc": "Treasury Inflation-Protected Securities (TIPS)"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "5.536",
+      "security_desc": "Treasury Floating Rate Notes (FRN)"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "2.513",
+      "security_desc": "Federal Financing Bank"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "3.277",
+      "security_desc": "Total Marketable"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "7.577",
+      "security_desc": "Domestic Series"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "4.076",
+      "security_desc": "Special Purpose Vehicle"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "0.000",
+      "security_desc": "Foreign Series"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "3.520",
+      "security_desc": "State and Local Government Series"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "3.442",
+      "security_desc": "United States Savings Securities"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "4.887",
+      "security_desc": "United States Savings Inflation Securities"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "2.950",
+      "security_desc": "Government Account Series"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "1.137",
+      "security_desc": "Government Account Series Inflation Securities"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "2.968",
+      "security_desc": "Total Non-marketable"
+     },
+     {
+      "record_date": "2024-03-31",
+      "avg_interest_rate_amt": "3.216",
+      "security_desc": "Total Interest-bearing Debt"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "5.357",
+      "security_desc": "Treasury Bills"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "2.497",
+      "security_desc": "Treasury Notes"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "3.141",
+      "security_desc": "Treasury Bonds"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "0.689",
+      "security_desc": "Treasury Inflation-Protected Securities (TIPS)"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "5.442",
+      "security_desc": "Treasury Floating Rate Notes (FRN)"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "2.513",
+      "security_desc": "Federal Financing Bank"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "3.297",
+      "security_desc": "Total Marketable"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "7.577",
+      "security_desc": "Domestic Series"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "4.086",
+      "security_desc": "Special Purpose Vehicle"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "0.000",
+      "security_desc": "Foreign Series"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "3.584",
+      "security_desc": "State and Local Government Series"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "3.476",
+      "security_desc": "United States Savings Securities"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "5.039",
+      "security_desc": "United States Savings Inflation Securities"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "2.960",
+      "security_desc": "Government Account Series"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "1.138",
+      "security_desc": "Government Account Series Inflation Securities"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "2.979",
+      "security_desc": "Total Non-marketable"
+     },
+     {
+      "record_date": "2024-04-30",
+      "avg_interest_rate_amt": "3.234",
+      "security_desc": "Total Interest-bearing Debt"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "5.352",
+      "security_desc": "Treasury Bills"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "2.560",
+      "security_desc": "Treasury Notes"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "3.156",
+      "security_desc": "Treasury Bonds"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "0.702",
+      "security_desc": "Treasury Inflation-Protected Securities (TIPS)"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "5.439",
+      "security_desc": "Treasury Floating Rate Notes (FRN)"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "2.513",
+      "security_desc": "Federal Financing Bank"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "3.334",
+      "security_desc": "Total Marketable"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "7.577",
+      "security_desc": "Domestic Series"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "4.095",
+      "security_desc": "Special Purpose Vehicle"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "0.000",
+      "security_desc": "Foreign Series"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "3.676",
+      "security_desc": "State and Local Government Series"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "3.477",
+      "security_desc": "United States Savings Securities"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "4.902",
+      "security_desc": "United States Savings Inflation Securities"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "2.969",
+      "security_desc": "Government Account Series"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "1.138",
+      "security_desc": "Government Account Series Inflation Securities"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "2.990",
+      "security_desc": "Total Non-marketable"
+     },
+     {
+      "record_date": "2024-05-31",
+      "avg_interest_rate_amt": "3.266",
+      "security_desc": "Total Interest-bearing Debt"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "5.351",
+      "security_desc": "Treasury Bills"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "2.587",
+      "security_desc": "Treasury Notes"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "3.162",
+      "security_desc": "Treasury Bonds"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "0.716",
+      "security_desc": "Treasury Inflation-Protected Securities (TIPS)"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "5.418",
+      "security_desc": "Treasury Floating Rate Notes (FRN)"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "2.434",
+      "security_desc": "Federal Financing Bank"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "3.344",
+      "security_desc": "Total Marketable"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "7.577",
+      "security_desc": "Domestic Series"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "4.076",
+      "security_desc": "Special Purpose Vehicle"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "0.000",
+      "security_desc": "Foreign Series"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "3.726",
+      "security_desc": "State and Local Government Series"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "3.478",
+      "security_desc": "United States Savings Securities"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "4.762",
+      "security_desc": "United States Savings Inflation Securities"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "3.009",
+      "security_desc": "Government Account Series"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "1.140",
+      "security_desc": "Government Account Series Inflation Securities"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "3.029",
+      "security_desc": "Total Non-marketable"
+     },
+     {
+      "record_date": "2024-06-30",
+      "avg_interest_rate_amt": "3.281",
+      "security_desc": "Total Interest-bearing Debt"
+     }
+    ],
+    "meta": {
+     "count": 102,
+     "labels": {
+      "record_date": "Record Date",
+      "avg_interest_rate_amt": "Average Interest Rate Amount",
+      "security_desc": "Security Description"
+     },
+     "dataTypes": {
+      "record_date": "DATE",
+      "avg_interest_rate_amt": "PERCENTAGE",
+      "security_desc": "STRING"
+     },
+     "dataFormats": {
+      "record_date": "YYYY-MM-DD",
+      "avg_interest_rate_amt": "10.2%",
+      "security_desc": "String"
+     },
+     "total-count": 102,
+     "total-pages": 1
+    },
+    "links": {
+     "self": "&page%5Bnumber%5D=1&page%5Bsize%5D=10000",
+     "first": "&page%5Bnumber%5D=1&page%5Bsize%5D=10000",
+     "prev": null,
+     "next": null,
+     "last": "&page%5Bnumber%5D=1&page%5Bsize%5D=10000"
+    }
+   }
+  }
+ ]
+}

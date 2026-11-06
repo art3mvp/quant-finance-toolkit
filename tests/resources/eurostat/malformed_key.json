@@ -1,0 +1,25 @@
+{
+ "source": "eurostat",
+ "case": "malformed_key",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {},
+  "errors": {
+   "prc_hicp_manr/M.RCH_A": "eurostat: prc_hicp_manr/M.RCH_A: clave mal formada: INVALID_QUERY_NB_FILTERS: Incorrect number of filters"
+  }
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/PRC_HICP_MANR/M.RCH_A",
+   "query": {
+    "format": "SDMX-CSV",
+    "startPeriod": "2023-01-01",
+    "endPeriod": "2023-12-31"
+   },
+   "status": 400,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><S:Fault xmlns:S=\"http://schemas.xmlsoap.org/soap/envelope/\"><faultcode>140</faultcode><faultstring>INVALID_QUERY_NB_FILTERS: Incorrect number of filters</faultstring></S:Fault>"
+  }
+ ]
+}

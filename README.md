@@ -294,11 +294,30 @@ fechas están en [docs/architecture.md](docs/architecture.md).
 ## Tests
 
 ```bash
-pytest                      # tests unitarios, sin red
+pytest                      # unitarios + integración (≈ 3 s, sin red)
+pytest tests/integration    # solo integración
 pytest --cov=toolkit        # con cobertura
-pytest -m network           # tests de integración contra Yahoo/FRED reales
 ruff check .                # linter
 ```
+
+**Ningún test sale a la red.** `tests/conftest.py` bloquea cualquier conexión: si a un
+test le falta un mock, falla con un mensaje claro en lugar de llamar a la API real.
+
+| Tipo | Carpeta | Qué es real | Qué se simula |
+|------|---------|-------------|---------------|
+| Unitarios | `tests/unit/` | una pieza (un modelo, un servicio, un adaptador) | lo demás: fakes (`tests/fakes.py`) o HTTP mínimo escrito a mano |
+| Integración | `tests/integration/` | todo `src`: `bootstrap`, CLI, servicios, adaptadores, `HttpClient`, `Portfolio`, ficheros | solo las APIs, con **respuestas reales grabadas** (`tests/resources/`) |
+
+Los tests de integración cubren las 15 fuentes. Para cada una comprueban una respuesta
+correcta y otra de error, ambas tal como las devolvió la API: un 404, un 400 con XML,
+un HTTP 200 con el error en el cuerpo, el límite de peticiones de Alpha Vantage... Los
+valores esperados se leen del cuerpo grabado, no del adaptador. El mock es estricto:
+si un adaptador cambia la URL o un parámetro, el test falla, igual que fallaría contra
+la API real.
+
+Las credenciales aparecen en las grabaciones como `<NOMBRE_DE_LA_VARIABLE>` y las
+respuestas muy grandes están recortadas sin cambiar su estructura. Un test comprueba que
+ninguna grabación contiene una clave y que todas están en uso.
 
 ## Estructura del proyecto
 
@@ -331,5 +350,7 @@ ruff check .                # linter
     ├── fakes.py                # proveedores sintéticos que implementan los puertos
     ├── unit/{domain,services,adapters}/
     ├── unit/test_architecture.py
-    └── integration/            # @pytest.mark.network
+    ├── integration/            # todo src real, APIs con respuestas grabadas
+    ├── resources/<fuente>/     # respuestas reales grabadas (sin credenciales)
+    └── conftest.py             # bloquea la red en todos los tests
 ```

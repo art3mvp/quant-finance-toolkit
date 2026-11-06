@@ -1,0 +1,18 @@
+{
+ "source": "cnmv",
+ "case": "latest",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "documents": 4
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://www.cnmv.es/portal/Otra-Informacion-Relevante/RSS.asmx/GetNoticiasCNMV",
+   "query": {},
+   "status": 200,
+   "content_type": "text/xml; charset=utf-8",
+   "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<rss xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" version=\"2.0\">\r\n  <Channel>\r\n    <title>CNMV - Otra informacion relevante.</title>\r\n    <link>https://www.cnmv.es/Portal/Otra-Informacion-Relevante/AlDia-OIR.aspx</link>\r\n    <description>Otra información relevante del día (Desde el cierre de la sesión anterior).</description>\r\n    <generator>CNMV RSS</generator>\r\n    <language>es</language>\r\n    <ttl>15</ttl>\r\n    <image>\r\n      <Title>Comisión nacional del mercado de valores</Title>\r\n      <Link>http://www.cnmv.es</Link>\r\n      <Url>http://www.cnmv.es/images/cnmv_logo.gif</Url>\r\n    </image>\r\n    <item>\r\n      <Title>COX INFRASTRUCTURE GROUP, S.A.</Title>\r\n      <link><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43511]]></link>\r\n      <guid isPermaLink=\"true\"><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43511]]></guid>\r\n      <pubDate>Thu, 05 Nov 2026 17:57:11 GMT</pubDate>\r\n      <description><![CDATA[<p><b>18:57  05/11/2026  </b> Sobre Gobierno corporativo<BR/><BR/>Cambio en el Chief Executive Officer (CEO) de la Sociedad</p>]]></description>\r\n    </item>\r\n    <item>\r\n      <Title>INTERNATIONAL CONSOLIDATED AIRLINES GROUP, S.A.</Title>\r\n      <link><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43510]]></link>\r\n      <guid isPermaLink=\"true\"><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43510]]></guid>\r\n      <pubDate>Thu, 05 Nov 2026 17:12:04 GMT</pubDate>\r\n      <description><![CDATA[<p><b>18:12  05/11/2026  </b> Otra información relevante<BR/><BR/>La Sociedad anuncia la distribución de un dividendo a cuenta de 0,053 euros brutos por acción</p>]]></description>\r\n    </item>\r\n    <item>\r\n      <Title>GESTAMP AUTOMOCION, S.A.</Title>\r\n      <link><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43509]]></link>\r\n      <guid isPermaLink=\"true\"><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43509]]></guid>\r\n      <pubDate>Thu, 05 Nov 2026 17:06:13 GMT</pubDate>\r\n      <description><![CDATA[<p><b>18:06  05/11/2026  </b> Contratos de liquidez y contrapartida<BR/><BR/>La Sociedad comunica la resolución del Contrato de Liquidez.</p>]]></description>\r\n    </item>\r\n    <item>\r\n      <Title>COMPAÑIA ESPAÑOLA DE VIVIENDAS EN ALQUILER, S.A.</Title>\r\n      <link><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43508]]></link>\r\n      <guid isPermaLink=\"true\"><![CDATA[https://www.cnmv.es/Portal/Otra-Informacion-Relevante/Resultado-OIR.aspx?nreg=43508]]></guid>\r\n      <pubDate>Thu, 05 Nov 2026 16:36:41 GMT</pubDate>\r\n      <description><![CDATA[<p><b>17:36  05/11/2026  </b> Sobre negocio y situación financiera<BR/><BR/>Información sobre los resultados de los nueve primeros meses del año 2026</p>]]></description>\r\n    </item>\r\n  </Channel>\r\n</rss>"
+  }
+ ]
+}

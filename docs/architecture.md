@@ -203,6 +203,20 @@ También comprueba que `src/` no contiene código de test (ficheros `test_*`/`fa
 `conftest` ni imports de `pytest`, `unittest` o `responses`). Los fakes viven en
 `tests/fakes.py`.
 
+### Cómo se prueba cada capa
+
+- **Dominio y servicios**: tests unitarios con los fakes de `tests/fakes.py`, que cumplen
+  los puertos outbound. Gracias a la inversión de dependencias, el núcleo se prueba sin
+  ningún adaptador.
+- **Adaptadores**: tests unitarios con HTTP simulado (`responses`) para cada caso
+  límite, y tests de integración con **respuestas reales grabadas**
+  (`tests/resources/<fuente>/`), que recorren `bootstrap` → servicio → adaptador →
+  `HttpClient` → dominio.
+- **De extremo a extremo**: `bootstrap.main` con argumentos de consola, ficheros reales
+  en un directorio temporal y las mismas grabaciones.
+
+Ningún test accede a la red: `tests/conftest.py` lo bloquea.
+
 ## Flujo de una petición
 
 `toolkit prices AAPL ^GSPC --start 2020-01-01 --out data/`:

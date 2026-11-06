@@ -1,0 +1,29 @@
+{
+ "source": "bis",
+ "case": "policy_rate_us",
+ "recorded_on": "2026-11-06",
+ "outcome": {
+  "series": {
+   "WS_CBPOL/M.US": {
+    "n_obs": 12,
+    "start": "2023-01-01",
+    "end": "2023-12-01"
+   }
+  },
+  "errors": {}
+ },
+ "interactions": [
+  {
+   "method": "GET",
+   "url": "https://stats.bis.org/api/v1/data/WS_CBPOL/M.US",
+   "query": {
+    "format": "csv",
+    "startPeriod": "2023-01-01",
+    "endPeriod": "2023-12-31"
+   },
+   "status": 200,
+   "content_type": "text/csv;charset=UTF-8",
+   "text": "FREQ,REF_AREA,UNIT_MEASURE,UNIT_MULT,TIME_FORMAT,COMPILATION,DECIMALS,SOURCE_REF,SUPP_INFO_BREAKS,TITLE,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-01,4.375,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-02,4.625,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-03,4.875,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-04,4.875,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-05,5.125,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-06,5.125,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-07,5.375,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-08,5.375,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-09,5.375,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-10,5.375,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-11,5.375,A,F,\nM,US,368,0,,From 19 Dec 1985 onwards: mid-point of the Federal Reserve target rate; from 1 Jul 1954 to 18 Dec 1985: US Fed Funds effective rate.,4,US Federal Reserve System,, Central bank policy rates - United States - Monthly - End of period,2023-12,5.375,A,F,\n"
+  }
+ ]
+}

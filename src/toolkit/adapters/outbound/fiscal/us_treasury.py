@@ -16,22 +16,48 @@ Particularidades (verificadas contra el servicio real):
       ``PERCENTAGE`` → %). Los huecos llegan como la cadena ``"null"``.
     * ``record_date`` es el último día del periodo (p. ej. ``2024-01-31``); se refecha al
       inicio (``2024-01-01``), la convención del dominio.
+    * Errores: un endpoint inexistente da 404 (HTML). Un campo inexistente, ya sea el de
+      la serie o el del filtro, da 400 con ``{"message": "... Field 'x' does not exist"}``;
+      ambos se tratan como serie inexistente (``SeriesNotFoundError``).
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from toolkit.adapters.outbound._http import HttpClient
 from toolkit.adapters.outbound._periods import infer_frequency, to_period_start, to_series
-from toolkit.domain.errors import InvalidRequestError, ProviderError, SeriesNotFoundError
+from toolkit.domain.errors import (
+    InvalidRequestError,
+    ProviderError,
+    SeriesNotFoundError,
+    ToolkitError,
+)
 from toolkit.domain.models import MacroSeries
 
 DEFAULT_BASE_URL = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service"
 PAGE_SIZE = 10000
 _UNITS = {"CURRENCY": "USD", "PERCENTAGE": "%"}
+
+
+def map_error(status: int, body: str) -> ToolkitError | None:
+    """Traduce los 400 del Tesoro, que explican el motivo en ``message`` (JSON)."""
+    if status != 400:
+        return None
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    message = str(payload.get("message") or payload.get("error") or "").strip()
+    message = message.split(" For more information", 1)[0]
+    if "does not exist" in message:
+        return SeriesNotFoundError(f"no encontrado: {message}")
+    return ProviderError(f"HTTP 400: {message}") if message else None
 
 
 @dataclass(frozen=True)
@@ -88,7 +114,7 @@ class UsTreasuryMacroProvider:
 
     def __init__(self, base_url: str = DEFAULT_BASE_URL, **http_options: Any) -> None:
         self.base_url = base_url.rstrip("/")
-        self._http = HttpClient(self.name, **http_options)
+        self._http = HttpClient(self.name, error_mapper=map_error, **http_options)
 
     def fetch_series(
         self,
@@ -102,7 +128,7 @@ class UsTreasuryMacroProvider:
         Raises:
             InvalidRequestError: Si se pide ``as_of`` (la fuente no publica vintages).
             InvalidRequestError: Si el id no tiene el formato esperado.
-            SeriesNotFoundError: Si el endpoint no existe o no hay filas.
+            SeriesNotFoundError: Si el endpoint o el campo no existen, o no hay filas.
             ProviderError: Si hay varias filas por fecha (falta un
                 filtro) o el formato es inválido.
         """

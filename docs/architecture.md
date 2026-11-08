@@ -39,8 +39,9 @@ flowchart LR
     subgraph HEX["Hexágono (núcleo)"]
         PIN[["Puertos inbound (casos de uso)<br/>DownloadData · ListDocuments · StoreSeries"]]
         SVC["Servicios<br/>DownloadService · DocumentService · StorageService"]
-        DOM["Dominio<br/>PriceSeries · MacroSeries · RegulatoryDocument<br/>peticiones · DownloadResult · errores · Portfolio"]
-        POUT[["Puertos outbound<br/>PriceProvider · MacroProvider<br/>DocumentProvider · SeriesRepository"]]
+        DOM["Dominio<br/>PriceSeries · MacroSeries · RegulatoryDocument<br/>peticiones · DownloadResult · errores<br/>Portfolio · limpieza · métricas · report · Monte Carlo"]
+        POUT[["Puertos outbound<br/>PriceProvider · MacroProvider · DocumentProvider<br/>SeriesRepository · PlotRenderer"]]
+        DOM -- plots_report / plot --> POUT
         PIN --> SVC
         SVC --> DOM
         SVC --> POUT
@@ -49,6 +50,7 @@ flowchart LR
     subgraph OUT["Adaptadores outbound (driven)"]
         SRC["Fuentes de datos<br/>market/ · macro/ · fiscal/<br/>regulatory/ · specialized/"]
         STO["Persistencia<br/>storage/files.py (CSV, Parquet)"]
+        PLT["Gráficos<br/>plotting/matplotlib_renderer.py"]
         HTTP["_http · _prices · _periods · _sdmx<br/>(infraestructura común)"]
         FAKE["Fakes<br/>(solo en tests/)"]
         SRC --> HTTP
@@ -58,17 +60,293 @@ flowchart LR
     NB --> PIN
     POUT -. implementado por .-> SRC
     POUT -. implementado por .-> STO
+    POUT -. implementado por .-> PLT
     POUT -. implementado por .-> FAKE
 
     BOOT{{"bootstrap.py<br/>composition root"}}
     BOOT -- crea adaptadores e inyecta --> SVC
     BOOT -- inyecta fábricas de casos de uso --> CLI
+    BOOT -- registra el renderer por defecto --> DOM
 ```
 
 Las flechas continuas son dependencias de código y **siempre apuntan hacia el
 dominio**. Las discontinuas indican qué adaptador cumple cada puerto: el adaptador no
 hereda del puerto ni lo importa necesariamente; basta con que tenga los mismos métodos
 (tipado estructural, PEP 544).
+
+La flecha *Dominio → Puertos outbound* es la única excepción aparente: `Portfolio` y
+`SimulationResult` delegan el dibujo en un `PlotRenderer`. El protocolo se **define en
+el dominio** (`domain/plotting.py`) y `ports/outbound.py` solo lo reexporta, así que en
+el código la dependencia sigue apuntando hacia dentro (ver
+[Visualización y reportes](#visualización-y-reportes)).
+
+## Diagrama de clases (UML)
+
+### Modelo de dominio
+
+Composición (`*--`): la cartera se compone de series de precios. Dependencia (`..>`):
+crea o usa la otra clase. Los atributos marcados como *calculado* se rellenan en
+`__post_init__`, al instanciar.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class AssetType {
+        <<enumeration>>
+        EQUITY
+        INDEX
+        CRYPTO
+    }
+    class Frequency {
+        <<enumeration>>
+        DAILY
+        WEEKLY
+        MONTHLY
+        QUARTERLY
+        ANNUAL
+    }
+    class PriceSeries {
+        <<dataclass frozen>>
+        +str ticker
+        +str name
+        +AssetType asset_type
+        +str source
+        +str currency
+        +Frequency frequency
+        +DataFrame data
+        +float mean_return «calculado»
+        +float std_return «calculado»
+        +prices() Series
+        +returns() Series
+        +log_returns() Series
+    }
+    class MacroSeries {
+        <<dataclass frozen>>
+        +str series_id
+        +str source
+        +str units
+        +Frequency frequency
+        +Series data
+        +date vintage
+        +float mean «calculado»
+        +float std «calculado»
+    }
+    class RegulatoryDocument {
+        <<dataclass frozen>>
+        +str source
+        +str identifier
+        +str title
+        +str url
+        +datetime published_at
+    }
+    class DownloadRequest {
+        <<dataclass frozen>>
+        +tuple tickers
+        +date start
+        +date end
+        +Frequency interval
+        +AssetType asset_type
+    }
+    class MacroRequest {
+        <<dataclass frozen>>
+        +tuple series_ids
+        +date start
+        +date end
+        +date as_of
+    }
+    class DownloadResult~T~ {
+        <<dataclass>>
+        +dict series
+        +dict errors
+        +ok() bool
+    }
+    class Portfolio {
+        <<dataclass frozen>>
+        +list~PriceSeries~ series
+        +dict weights
+        +str alignment
+        +int ffill_limit
+        +bool strict_currency
+        +DataFrame prices «calculado»
+        +DataFrame returns «calculado»
+        +AlignmentReport alignment_report «calculado»
+        +tuple warnings «calculado»
+        +mean_return() float
+        +volatility() float
+        +monte_carlo(n_steps, n_simulations, mu, sigma, seed) SimulationResult
+        +monte_carlo_asset(ticker, ...) SimulationResult
+        +report(risk_free, confidence, sections, simulation, ...) str
+        +plots_report(renderer) Any
+    }
+    class AlignedPrices {
+        <<dataclass frozen>>
+        +DataFrame prices
+        +AlignmentReport report
+        +returns() DataFrame
+    }
+    class AlignmentReport {
+        <<dataclass frozen>>
+        +str method
+        +DatetimeIndex dropped_dates
+        +dict missing_by_ticker
+        +dict nan_dropped_by_ticker
+        +dict filled_by_ticker
+    }
+    class SimulationResult {
+        <<dataclass frozen>>
+        +ndarray paths
+        +float initial_value
+        +float mu
+        +float sigma
+        +quantile(q) float
+        +var(confidence) float
+        +percentile_bands(qs) DataFrame
+        +plot(renderer) Any
+    }
+    class RiskThresholds {
+        <<dataclass frozen>>
+        +float max_weight
+        +int min_obs
+        +float high_corr
+        +float high_vol
+    }
+    class PortfolioPlotData {
+        <<dataclass frozen>>
+    }
+    class SimulationPlotData {
+        <<dataclass frozen>>
+    }
+    class PlotRenderer {
+        <<Protocol>>
+        +render_portfolio(PortfolioPlotData) Any
+        +render_simulation(SimulationPlotData) Any
+    }
+    class ToolkitError {
+        <<exception>>
+    }
+
+    PriceSeries --> AssetType
+    PriceSeries --> Frequency
+    MacroSeries --> Frequency
+    DownloadRequest --> Frequency
+    DownloadResult~T~ o-- PriceSeries : T
+    DownloadResult~T~ o-- MacroSeries : T
+    Portfolio *-- "1..*" PriceSeries
+    Portfolio ..> AlignedPrices : align_prices()
+    AlignedPrices *-- AlignmentReport
+    Portfolio --> AlignmentReport
+    Portfolio ..> SimulationResult : monte_carlo()
+    Portfolio ..> RiskThresholds : report()
+    Portfolio ..> PortfolioPlotData : plot_data()
+    SimulationResult ..> SimulationPlotData : plot_data()
+    Portfolio ..> PlotRenderer : plots_report()
+    SimulationResult ..> PlotRenderer : plot()
+    ToolkitError <|-- InvalidSeriesError
+    ToolkitError <|-- InvalidRequestError
+    ToolkitError <|-- ConfigurationError
+    ToolkitError <|-- ProviderError
+    ProviderError <|-- SeriesNotFoundError
+```
+
+### Puertos, servicios y adaptadores
+
+Realización (`..|>`): la clase cumple el protocolo de forma estructural (PEP 544), sin
+heredar de él. Solo se muestra un adaptador representativo por tipo; la lista completa
+está en [Adaptadores](#4-adaptadores-toolkitadapters).
+
+```mermaid
+classDiagram
+    direction TB
+
+    class DownloadData {
+        <<Protocol · inbound>>
+        +download_prices(DownloadRequest) DownloadResult
+        +download_macro(MacroRequest) DownloadResult
+    }
+    class ListDocuments {
+        <<Protocol · inbound>>
+        +list_documents(DocumentRequest) list
+    }
+    class StoreSeries {
+        <<Protocol · inbound>>
+        +store(series) list
+    }
+    class PriceProvider {
+        <<Protocol · outbound>>
+        +name
+        +fetch_prices(ticker, start, end, interval, asset_type) PriceSeries
+    }
+    class MacroProvider {
+        <<Protocol · outbound>>
+        +name
+        +fetch_series(series_id, start, end, as_of) MacroSeries
+    }
+    class DocumentProvider {
+        <<Protocol · outbound>>
+        +fetch_documents(request) list
+    }
+    class SeriesRepository {
+        <<Protocol · outbound>>
+        +save(series) list
+    }
+    class PlotRenderer {
+        <<Protocol · outbound>>
+        +render_portfolio(data) Any
+        +render_simulation(data) Any
+    }
+
+    class DownloadService
+    class DocumentService
+    class StorageService
+    class YahooPriceProvider
+    class CoinGeckoPriceProvider
+    class FredMacroProvider
+    class SdmxMacroProvider
+    class EcbMacroProvider
+    class SecEdgarMacroProvider
+    class CnmvDocumentProvider
+    class FileSeriesRepository
+    class MatplotlibPlotRenderer
+    class CLI {
+        <<adapter inbound>>
+    }
+    class bootstrap {
+        <<composition root>>
+        +build_download_service()
+        +build_document_service()
+        +build_storage_service()
+        +build_plot_renderer()
+        +configure_plotting()
+    }
+
+    DownloadService ..|> DownloadData
+    DocumentService ..|> ListDocuments
+    StorageService ..|> StoreSeries
+    DownloadService --> PriceProvider
+    DownloadService --> MacroProvider
+    DocumentService --> DocumentProvider
+    StorageService --> SeriesRepository
+
+    YahooPriceProvider ..|> PriceProvider
+    CoinGeckoPriceProvider ..|> PriceProvider
+    FredMacroProvider ..|> MacroProvider
+    SdmxMacroProvider ..|> MacroProvider
+    SdmxMacroProvider <|-- EcbMacroProvider
+    SecEdgarMacroProvider ..|> MacroProvider
+    CnmvDocumentProvider ..|> DocumentProvider
+    FileSeriesRepository ..|> SeriesRepository
+    MatplotlibPlotRenderer ..|> PlotRenderer
+
+    CLI --> DownloadData
+    CLI --> ListDocuments
+    CLI --> StoreSeries
+    bootstrap ..> DownloadService : crea
+    bootstrap ..> DocumentService : crea
+    bootstrap ..> StorageService : crea
+    bootstrap ..> MatplotlibPlotRenderer : crea
+    bootstrap ..> CLI : inyecta fábricas
+```
 
 ## Las capas, una a una
 
@@ -85,11 +363,19 @@ consumen.
 - **Peticiones**: `DownloadRequest`, `MacroRequest` y `DocumentRequest`. Una petición
   inválida (`tickers=[]`, `start > end`...) falla antes de tocar la red.
 - **Resultados y errores**: `DownloadResult[T]` y la jerarquía `ToolkitError`.
-- **Análisis** (`portfolio.py`, `simulation.py`): `Portfolio` (pesos, retornos alineados,
-  volatilidad) y Monte Carlo (`simulate_gbm`).
+- **Limpieza** (`cleaning.py`): `align_prices` alinea los precios de varios activos en
+  un calendario común y descarta NaNs, con un `AlignmentReport` de lo que ha quitado
+  o rellenado (ver [Limpieza y alineación](#limpieza-y-alineación)).
+- **Análisis** (`portfolio.py`, `simulation.py`, `metrics.py`): `Portfolio` (pesos,
+  precios y retornos alineados, avisos de divisa), Monte Carlo (`simulate_gbm`,
+  `SimulationResult`) y métricas puras (anualización, Sharpe, drawdown, VaR/CVaR).
+- **Informes** (`report.py`, `plotting.py`): `Portfolio.report()` genera Markdown;
+  `plots_report()` y `SimulationResult.plot()` preparan los datos de los gráficos y
+  delegan el dibujo en un `PlotRenderer` inyectado.
 
 **Puede usar:** stdlib, `pandas` y `numpy`. **Nada de I/O**: ni red, ni ficheros, ni
-consola, ni gráficos. El dominio no sabe que existen Yahoo, FRED, HTTP o el disco.
+consola, ni librerías gráficas. El dominio no sabe que existen Yahoo, FRED, HTTP,
+el disco o matplotlib.
 
 ### 2. Puertos (`toolkit.ports`)
 
@@ -103,6 +389,8 @@ y el exterior. No contienen lógica.
 - **Outbound** (`outbound.py`): lo que el núcleo **necesita** del exterior.
   - `PriceProvider`, `MacroProvider`, `DocumentProvider`: fuentes de datos.
   - `SeriesRepository`: destino donde guardar series.
+  - `PlotRenderer`: quien dibuja los gráficos. Se define en `domain/plotting.py`
+    porque lo necesitan métodos del dominio, y aquí se reexporta.
 
 **Puede usar:** solo el dominio.
 
@@ -152,6 +440,9 @@ mezclan**.
 
 - **Persistencia** (`storage/files.py`): `FileSeriesRepository`, un CSV o Parquet por
   serie. Si se pide Parquet sin `pyarrow`, falla al construirse, antes de descargar.
+- **Gráficos** (`plotting/matplotlib_renderer.py`): `MatplotlibPlotRenderer`, que
+  cumple `PlotRenderer` y devuelve `Figure`s construidas con la API orientada a
+  objetos (sin estado de `pyplot`: no abre ventanas ni bloquea).
 - **Infraestructura común** (módulos privados `_*.py`, que no son adaptadores):
   - `_http`: reintentos, `Retry-After`, ocultación de claves y traducción HTTP → errores
     de dominio. Las fuentes que codifican el motivo en el cuerpo (FRED) aportan un
@@ -177,6 +468,9 @@ entorno.
   `DOCUMENT_PROVIDERS`).
 - Construye los casos de uso: `build_download_service`, `build_document_service` y
   `build_storage_service`. Es la API para usar el toolkit desde Python o un notebook.
+- Construye el renderer de gráficos (`build_plot_renderer`, registro
+  `PLOT_RENDERERS`) y lo registra como predeterminado con `configure_plotting()`.
+  matplotlib se importa de forma perezosa, así que la CLI no lo carga.
 - `main` inyecta esas fábricas, la lista de fuentes y las de por defecto en la CLI. Es
   el entry point del comando `toolkit`.
 
@@ -190,7 +484,7 @@ entorno.
 | `ports` | `domain` | `pandas`, `numpy` |
 | `services` | `domain`, `ports` | `pandas`, `numpy` |
 | `adapters.inbound` | `domain`, `ports.inbound` | cualquiera |
-| `adapters.outbound` | `domain`, `ports.outbound`, helpers `outbound/_*` | cualquiera |
+| `adapters.outbound` | `domain`, `ports.outbound`, helpers `outbound/_*` | cualquiera (`matplotlib` solo aquí) |
 | `bootstrap` | todo | cualquiera |
 
 La regla se comprueba en cada `pytest` con `tests/unit/test_architecture.py`. El test
@@ -291,6 +585,25 @@ adaptador envía `realtime_start = realtime_end = as_of` y obtiene los datos **t
 se conocían ese día** (vintage). Así se evita el *look-ahead bias* en backtests, porque
 muchas series macro (PIB, IPC, empleo) se revisan después de publicarse.
 
+### Limpieza y alineación
+
+Los activos de una cartera no comparten calendario: una cripto cotiza 24/7 y cada bolsa
+tiene sus festivos. `Portfolio` **alinea primero los precios** (`align_prices`) y solo
+después calcula los retornos. Si se hiciera al revés (retornos de cada serie y luego
+cruce por fecha), el retorno de un mismo día abarcaría intervalos distintos en cada
+activo (el lunes de AAPL es viernes→lunes; el de BTC, domingo→lunes) y el movimiento de
+las fechas descartadas se perdería.
+
+| Método | Qué fechas quedan | Coste |
+|---|---|---|
+| `inner` (por defecto) | las comunes a todos los activos | se pierden fechas, pero cada retorno es comparable |
+| `ffill` | la unión, rellenando como mucho `ffill_limit` periodos | cada relleno es un retorno 0 artificial: **sesga a la baja** volatilidad y correlación |
+
+`ffill` nunca rellena hacia atrás (sería *look-ahead*) ni más allá del último precio de
+cada serie. Los precios no finitos se descartan y se cuentan; un precio `<= 0` es un
+error. Todo queda en `Portfolio.alignment_report`, y `report()` lo muestra en el
+diagnóstico y avisa si se ha descartado más del 10 % de las fechas.
+
 ## Extender el sistema
 
 - **Nueva fuente de un tipo existente** (otra API de precios o de series): un módulo en
@@ -308,6 +621,28 @@ muchas series macro (PIB, IPC, empleo) se revisan después de publicarse.
   `build_storage_service`. La CLI y los notebooks no cambian.
 - **Nuevo punto de entrada** (API REST, notebook): un adaptador inbound que use solo los
   puertos inbound y reciba los casos de uso desde `bootstrap`.
-- **Visualización y reportes** (`plots_report`...): el dominio calcula, no dibuja. Los
-  gráficos van en un adaptador (o en el propio notebook) que consuma los objetos del
-  dominio; así el núcleo sigue sin depender de `matplotlib`.
+- **Nuevo motor de gráficos** (plotly, bokeh...): un adaptador en
+  `adapters/outbound/plotting/` que cumpla `PlotRenderer` y una línea en
+  `PLOT_RENDERERS`. `Portfolio` y `SimulationResult` no cambian.
+
+## Visualización y reportes
+
+El enunciado pide `report()`, `plots_report()` y la visualización del Monte Carlo como
+**métodos de la cartera**, pero el dominio no puede depender de una librería gráfica.
+Se resuelve con inversión de dependencias:
+
+- **`report()`** es construcción de texto: vive entero en el dominio (`report.py`),
+  sin dependencias nuevas (las tablas Markdown se escriben a mano).
+- **`plots_report()` y `SimulationResult.plot()`** calculan en el dominio *qué* hay
+  que mostrar (`PortfolioPlotData`, `SimulationPlotData`: solo pandas y numpy) y
+  delegan el *cómo* en un `PlotRenderer`.
+- El protocolo `PlotRenderer` se define en `domain/plotting.py` (el dominio no puede
+  importar `ports`) y `ports/outbound.py` lo reexporta. `MatplotlibPlotRenderer` lo
+  implementa en `adapters/outbound/plotting/`.
+- El renderer se pasa en cada llamada (`plots_report(renderer)`) o se registra una
+  vez con `bootstrap.configure_plotting()`. Ese registro es el único estado global del
+  dominio; los tests lo reinician en cada caso (`tests/conftest.py`).
+
+Así el test de arquitectura sigue prohibiendo `matplotlib` en el dominio, y los
+gráficos se prueban dos veces: la delegación con un renderer fake y el dibujo real
+con el backend `Agg`.

@@ -31,6 +31,7 @@ import pandas as pd
 
 from toolkit.domain.errors import ProviderError, SeriesNotFoundError
 from toolkit.domain.models import AssetType, Frequency, MacroSeries, PriceSeries
+from toolkit.domain.plotting import PortfolioPlotData, SimulationPlotData
 
 #: Rango por defecto cuando la petición no indica fechas.
 DEFAULT_END = date(2024, 12, 31)
@@ -225,3 +226,19 @@ class FakeSeriesRepository:
     def save(self, series: Mapping[str, PriceSeries | MacroSeries]) -> list[str]:
         self.saved.update(series)
         return [f"memory://{identifier}" for identifier in series]
+
+
+class RecordingRenderer:
+    """Renderer que no dibuja: guarda los datos recibidos y devuelve un centinela."""
+
+    def __init__(self) -> None:
+        self.portfolios: list[PortfolioPlotData] = []
+        self.simulations: list[SimulationPlotData] = []
+
+    def render_portfolio(self, data: PortfolioPlotData) -> str:
+        self.portfolios.append(data)
+        return "portfolio-figure"
+
+    def render_simulation(self, data: SimulationPlotData) -> str:
+        self.simulations.append(data)
+        return "simulation-figure"

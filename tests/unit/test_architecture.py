@@ -197,6 +197,8 @@ def test_dependency_rule(module: str, path: Path) -> None:
         ("toolkit.adapters.outbound.market.yahoo", "from toolkit.adapters.inbound import cli"),
         # El núcleo no dibuja ni escribe ficheros: eso es de los adaptadores.
         ("toolkit.domain.portfolio", "import matplotlib.pyplot as plt"),
+        ("toolkit.domain.plotting", "from toolkit.ports.outbound import PlotRenderer"),
+        ("toolkit.domain.plotting", "import matplotlib"),
         ("toolkit.services.storage_service", "import pyarrow"),
     ],
 )
@@ -233,6 +235,12 @@ def test_checker_detects_violations(module: str, source: str) -> None:
             "import pandas as pd\nfrom toolkit.ports.outbound import SeriesRepository",
         ),
         ("toolkit.services.storage_service", "from toolkit.ports.outbound import X"),
+        ("toolkit.ports.outbound", "from toolkit.domain.plotting import PlotRenderer"),
+        (
+            "toolkit.adapters.outbound.plotting.matplotlib_renderer",
+            "import matplotlib.pyplot as plt\nfrom toolkit.ports.outbound import PlotRenderer\n"
+            "from toolkit.domain.plotting import PortfolioPlotData",
+        ),
     ],
 )
 def test_checker_accepts_valid_imports(module: str, source: str) -> None:

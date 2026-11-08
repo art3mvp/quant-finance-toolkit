@@ -7,10 +7,10 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from tests.fakes import FakeMacroProvider, FakePriceProvider
+from tests.fakes import FakeMacroProvider, FakePriceProvider, RecordingRenderer
 from toolkit.domain.errors import ProviderError, SeriesNotFoundError
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
-from toolkit.ports.outbound import MacroProvider, PriceProvider
+from toolkit.ports.outbound import MacroProvider, PlotRenderer, PriceProvider
 
 START, END = date(2023, 1, 1), date(2023, 12, 31)
 
@@ -18,6 +18,7 @@ START, END = date(2023, 1, 1), date(2023, 12, 31)
 def test_fakes_satisfy_ports() -> None:
     assert isinstance(FakePriceProvider(), PriceProvider)
     assert isinstance(FakeMacroProvider(), MacroProvider)
+    assert isinstance(RecordingRenderer(), PlotRenderer)
 
 
 def test_price_series_is_deterministic_and_valid() -> None:

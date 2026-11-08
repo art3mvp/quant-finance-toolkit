@@ -8,7 +8,14 @@ claro en lugar de llamar a la API real.
 
 from __future__ import annotations
 
+import os
+
+# Backend sin ventanas para matplotlib (antes de que nadie lo importe): los tests de
+# gráficos nunca abren ventanas ni bloquean.
+os.environ.setdefault("MPLBACKEND", "Agg")
+
 import socket
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -32,3 +39,13 @@ def _no_network(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(socket.socket, "connect_ex", _blocked)
     monkeypatch.setattr(socket, "create_connection", _blocked)
     monkeypatch.setattr(socket, "getaddrinfo", _blocked)
+
+
+@pytest.fixture(autouse=True)
+def _reset_default_renderer() -> Iterator[None]:
+    """El renderer predeterminado es estado global: cada test empieza y acaba sin él."""
+    from toolkit.domain.plotting import set_default_renderer
+
+    set_default_renderer(None)
+    yield
+    set_default_renderer(None)

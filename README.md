@@ -1,7 +1,7 @@
 # Toolkit financiero
 
 Toolkit en Python para **extraer, estandarizar y analizar datos bursátiles y
-macroeconómicos** y, en próximas fases, **gestionar carteras**. Taller B1-T1, Máster de IA
+macroeconómicos** y **gestionar y simular carteras**. Taller B1-T1, Máster de IA
 aplicada a mercados financieros.
 
 - Descarga **multifuente**, con un adaptador por fuente agrupado por tipo:
@@ -28,9 +28,17 @@ aplicada a mercados financieros.
   convención de fechas (inicio del periodo), para que las series de fuentes distintas
   se alineen.
 - Descarga **en lote y en paralelo**: un fallo individual no tumba el lote.
+- **Cartera** (`Portfolio`): pesos validados, **limpieza y alineación de calendarios**
+  (NaNs, festivos, cripto 24/7), métricas anualizadas, Sharpe, drawdown, VaR/CVaR y
+  avisos de divisa.
+- **Monte Carlo** parametrizable (iteraciones, horizonte, μ, σ, semilla) para la
+  cartera o un activo, con gráfico de trayectorias y distribución final (`sim.plot()`).
+- **Informes**: `cartera.report()` genera Markdown parametrizable con métricas,
+  diagnósticos y advertencias de riesgo; `cartera.plots_report()` dibuja rendimiento
+  comparado, evolución, drawdown, correlaciones, pesos y riesgo/retorno.
 - **Arquitectura hexagonal**: añadir una fuente nueva no requiere tocar el núcleo
   (resumen en [Cómo está organizado](#cómo-está-organizado); detalle en
-  [docs/architecture.md](docs/architecture.md)).
+  [docs/architecture.md](docs/architecture.md), con diagramas UML de clases).
 - **Notebook de demostración** con datos reales:
   [notebooks/demo_toolkit.ipynb](notebooks/demo_toolkit.ipynb).
 
@@ -40,7 +48,11 @@ aplicada a mercados financieros.
 - `git`.
 - API keys gratuitas, solo para las fuentes que vayas a usar:
   - FRED (series macro): <https://fred.stlouisfed.org/docs/api/api_key.html>.
+  - Alpha Vantage (precios): <https://www.alphavantage.co/support/#api-key>.
+  - Twelve Data (precios): <https://twelvedata.com/register>.
   - EIA (energía): <https://www.eia.gov/opendata/register.php>.
+  - Yahoo Finance, BCE, Eurostat, BIS, Banco Mundial, Banco de España, Tesoro de
+    EE. UU., CNMV y ESMA no necesitan clave.
   - CoinGecko funciona sin clave (plan público/demo, histórico de 365 días como máximo).
   - SEC EDGAR no usa clave, pero exige identificarse: en `.env`,
     `SEC_USER_AGENT=Nombre Apellido email@dominio.com` (solo el valor, sin
@@ -232,19 +244,50 @@ from toolkit.bootstrap import build_storage_service
 build_storage_service("data/", "csv").store(result.series)   # data/AAPL.csv, data/_GSPC.csv...
 ```
 
-Para análisis de cartera y Monte Carlo:
+### Cartera, informes y Monte Carlo
 
 ```python
+from toolkit.bootstrap import configure_plotting
 from toolkit.domain.portfolio import Portfolio
 
 cartera = Portfolio(
-    series=[result.series["AAPL"], result.series["MSFT"]],
-    weights={"AAPL": 0.6, "MSFT": 0.4},
+    series=[result.series["AAPL"], result.series["MSFT"], result.series["^GSPC"]],
+    weights={"AAPL": 0.4, "MSFT": 0.4, "^GSPC": 0.2},
+    alignment="inner",          # o "ffill" (con ffill_limit=5)
 )
-cartera.mean_return, cartera.volatility          # por periodo, sin anualizar
-sim = cartera.monte_carlo(n_steps=252, n_simulations=1000, seed=42)
-sim.quantile(0.05), sim.prob_loss                # percentil 5 del valor final y P(pérdida)
+cartera.prices, cartera.returns            # precios alineados y sus retornos
+cartera.alignment_report.dropped_dates     # fechas descartadas al alinear calendarios
+cartera.warnings                           # p. ej. divisas mezcladas
+cartera.mean_return, cartera.volatility    # por periodo, sin anualizar
+
+# Monte Carlo: cartera completa o un activo (desde su último precio)
+sim = cartera.monte_carlo(n_steps=252, n_simulations=2000, seed=42)   # μ y σ estimados
+sim = cartera.monte_carlo(n_steps=252, n_simulations=2000, mu=0.0003, sigma=0.012)
+sim_aapl = cartera.monte_carlo_asset("AAPL", n_steps=126, n_simulations=1000)
+sim.quantile(0.05), sim.var(0.95), sim.prob_loss
+
+# Informe Markdown parametrizable
+texto = cartera.report(
+    risk_free=0.03,                 # anual, para el Sharpe
+    confidence=0.99,                # VaR/CVaR
+    sections=["resumen", "metricas", "advertencias"],   # por defecto, todas
+    simulation=sim,                 # añade la sección de Monte Carlo
+)
+# En Jupyter: from IPython.display import Markdown; Markdown(texto)
+
+# Gráficos: se registra el renderer una vez (o se pasa en cada llamada)
+configure_plotting()                # matplotlib
+fig = cartera.plots_report()        # Figure: se muestra en Jupyter; en un script, fig.savefig(...)
+sim.plot()
 ```
+
+Secciones de `report()`: `resumen`, `metricas`, `pesos`, `activos`, `correlaciones`,
+`diagnostico`, `simulacion` y `advertencias`. Los umbrales de las advertencias
+(concentración, muestra corta, correlación y volatilidad altas, fechas descartadas) se
+cambian con `thresholds=RiskThresholds(...)` (`toolkit.domain.report`).
+
+La anualización usa 252 sesiones al año (365 si todos los activos son cripto), 52
+semanas o 12 meses según la frecuencia; se puede forzar con `periods_per_year=`.
 
 Las peticiones se validan al crearlas: `DownloadRequest(tickers=[])` o un
 `start > end` lanzan `InvalidRequestError` antes de cualquier descarga.
@@ -261,16 +304,90 @@ service = DownloadService(FakePriceProvider())  # series deterministas, sin red
 
 ### Notebook de demostración
 
-`notebooks/demo_toolkit.ipynb` recorre el toolkit con **datos reales**: precios de
-Yahoo (con un ticker inválido para ver la tolerancia a fallos), series del BCE y del
-Banco Mundial, FRED con y sin vintage, documentos de CNMV y ESMA, una cartera con
-Monte Carlo y el guardado en ficheros. Las celdas que necesitan una clave que no está
-en `.env` se saltan con un aviso.
+[`notebooks/demo_toolkit.ipynb`](notebooks/demo_toolkit.ipynb) recorre todas las
+capacidades del toolkit con **datos reales**, cada una en una sección. Se guarda
+ejecutado, así que se puede leer en GitHub con sus tablas, gráficos e informes sin
+instalar nada.
+
+| § | Qué enseña | Claves en `.env` |
+|---|---|---|
+| 2 | Acciones e índices (S&P 500, IBEX 35, Euro Stoxx 50) en lote; un ticker inválido no aborta el lote | — |
+| 3 | La misma `PriceSeries` desde Twelve Data, Alpha Vantage (semanal) y CoinGecko (cripto) | `TWELVE_DATA_API_KEY`, `ALPHA_VANTAGE_API_KEY` |
+| 4 | Datos adicionales: BCE, Eurostat, BIS, Banco de España, Banco Mundial, Tesoro de EE. UU., Brent (EIA) y fundamentales (SEC EDGAR) | `EIA_API_KEY`, `SEC_USER_AGENT` |
+| 5 | FRED: dato actual frente a vintage (*look-ahead bias*) | `FRED_API_KEY` |
+| 6 | Documentos regulatorios (CNMV, ESMA) | — |
+| 7 | Validación de peticiones, series y cartera (errores y avisos) | — |
+| 8 | Limpieza y alineación de calendarios (AAPL + IBEX + BTC): método ingenuo frente a alineado, `inner` frente a `ffill` | — |
+| 9 | Cartera: métricas y `plots_report()` | — |
+| 10 | Monte Carlo: escenario estimado, de estrés (μ y σ propios) y de un solo activo | — |
+| 11 | `report()` completo en Markdown, con umbrales de riesgo propios | — |
+| 12 | Guardado de series e informe, y la misma descarga desde la CLI | — |
+
+Las celdas que necesitan una clave que no está en `.env` se saltan con un aviso; el
+resto funciona sin ninguna.
 
 ```bash
-pip install -e ".[dev]" jupyter    # matplotlib viene en [dev]
+pip install -e ".[dev]" jupyter    # matplotlib ya es dependencia del toolkit
 jupyter lab notebooks/demo_toolkit.ipynb
+# o ábrelo en VS Code y elige como kernel el Python del .venv
 ```
+
+## Limpieza de datos y validación de inputs
+
+### Limpieza y alineación de calendarios
+
+Una cartera combina activos con calendarios distintos: una cripto cotiza 24/7 y cada
+bolsa tiene sus festivos. `Portfolio` **alinea primero los precios** y después calcula
+los retornos (`toolkit.domain.cleaning.align_prices`):
+
+- `alignment="inner"` (por defecto): solo las fechas comunes. Cada retorno cubre el
+  mismo intervalo en todos los activos: el lunes, BTC rinde viernes→lunes, igual que
+  AAPL, y el movimiento del fin de semana no se pierde.
+- `alignment="ffill"`: conserva la unión de fechas rellenando hacia delante como mucho
+  `ffill_limit` periodos. Nunca rellena hacia atrás (*look-ahead*). Cada relleno es un
+  retorno 0 artificial que **reduce** la volatilidad y la correlación medidas, por eso
+  no es el método por defecto.
+- Los precios `NaN`/`inf` se eliminan y se cuentan. Un precio `<= 0` es un error.
+
+Todo lo descartado o rellenado queda en `cartera.alignment_report` y aparece en la
+sección `diagnostico` de `report()`.
+
+### ¿Admitir cualquier serie temporal de precios? Estricto en el núcleo, flexible en los adaptadores
+
+El toolkit **no** acepta "cualquier cosa que contenga una serie de precios". El núcleo
+solo trabaja con `PriceSeries` y `MacroSeries`, que validan un **esquema cerrado** al
+crearse:
+
+- índice `DatetimeIndex` ordenado, sin duplicados y sin zona horaria;
+- columnas conocidas (`open, high, low, close, [adj_close], volume`), todas numéricas;
+- al menos una observación.
+
+Las peticiones (`DownloadRequest`...) y la cartera (pesos numéricos, finitos, no
+negativos y que suman 1, misma frecuencia) también se validan al construirse.
+
+Por qué se decidió así:
+
+1. **La ambigüedad se paga en cada métrica.** Con un input libre, cada cálculo tendría
+   que adivinar: ¿`close` o `adj_close`? ¿Fechas con zona horaria? ¿Fin o inicio de
+   periodo? ¿Hay duplicados? ¿Qué divisa? Un error de ese tipo no falla: da un Sharpe o
+   un VaR **silenciosamente incorrecto**, que es lo peor en finanzas.
+2. **Fallar pronto y cerca de la causa.** Una serie mal formada se rechaza al crearla,
+   con un mensaje que dice qué columna o índice está mal, no a mitad de un Monte Carlo.
+3. **Un único contrato para 15 fuentes.** La flexibilidad está donde de verdad varían los
+   formatos: los adaptadores. Cada uno traduce su API al esquema común, y todo lo que
+   viene después (cartera, informes, gráficos) confía en su entrada.
+4. **No bloquea a nadie.** Para analizar un CSV propio basta con construir una
+   `PriceSeries` con el esquema documentado (o escribir un adaptador).
+
+Lo que **no** se rechaza a propósito, porque son datos válidos pero con riesgo:
+
+- **Huecos y `NaN`**: se limpian al alinear y se informa de ellos.
+- **Divisas mezcladas o desconocidas**: se avisa en `cartera.warnings` y en el informe,
+  porque comparar mercados en moneda local es un análisis legítimo y convertir exigiría
+  una serie de tipo de cambio. Con `strict_currency=True` pasa a ser un error.
+
+En resumen: los datos **mal formados** son un error, y los datos **válidos pero
+arriesgados** generan un aviso.
 
 ## Cómo está organizado
 
@@ -280,10 +397,10 @@ formato.
 
 | Capa | Carpeta | En una frase |
 |------|---------|--------------|
-| Dominio | `domain/` | Los objetos con los que trabaja todo el mundo (`PriceSeries`, `MacroSeries`, `Portfolio`...), validados al crearse. Sin red, ficheros ni gráficos. |
-| Puertos | `ports/` | Los contratos: qué ofrece el núcleo (`DownloadData`, `ListDocuments`, `StoreSeries`) y qué necesita (`PriceProvider`, `MacroProvider`, `DocumentProvider`, `SeriesRepository`). |
+| Dominio | `domain/` | Los objetos con los que trabaja todo el mundo (`PriceSeries`, `MacroSeries`, `Portfolio`...), validados al crearse, más la limpieza, las métricas, el informe Markdown y los datos de los gráficos. Sin red, ficheros ni librerías gráficas. |
+| Puertos | `ports/` | Los contratos: qué ofrece el núcleo (`DownloadData`, `ListDocuments`, `StoreSeries`) y qué necesita (`PriceProvider`, `MacroProvider`, `DocumentProvider`, `SeriesRepository`, `PlotRenderer`). |
 | Servicios | `services/` | Los casos de uso: descarga en lote en paralelo, listado de documentos y guardado. Solo hablan con puertos. |
-| Adaptadores | `adapters/` | La traducción con el exterior: la CLI (entrada) y las 15 fuentes y el guardado en ficheros (salida). |
+| Adaptadores | `adapters/` | La traducción con el exterior: la CLI (entrada) y las 15 fuentes, el guardado en ficheros y los gráficos con matplotlib (salida). |
 | Composition root | `bootstrap.py` | El único sitio que conoce las clases concretas: lee `.env` y lo conecta todo. |
 
 Las dependencias solo apuntan hacia dentro (adaptadores → puertos → dominio) y un
@@ -329,7 +446,8 @@ ninguna grabación contiene una clave y que todas están en uso.
 ├── notebooks/
 │   └── demo_toolkit.ipynb      # recorrido con datos reales
 ├── src/toolkit/
-│   ├── domain/                 # núcleo: models.py, documents.py, errors.py, portfolio.py, simulation.py
+│   ├── domain/                 # núcleo: models.py, documents.py, errors.py, portfolio.py,
+│   │                           #   simulation.py, cleaning.py, metrics.py, report.py, plotting.py
 │   ├── ports/                  # inbound.py (casos de uso), outbound.py (fuentes y SeriesRepository)
 │   ├── services/               # download_service.py, document_service.py, storage_service.py
 │   ├── adapters/
@@ -344,7 +462,8 @@ ninguna grabación contiene una clave y que todas están en uso.
 │   │       ├── fiscal/         # us_treasury
 │   │       ├── regulatory/     # sec_edgar (series), cnmv y esma (documentos)
 │   │       ├── specialized/    # coingecko.py, eia.py
-│   │       └── storage/        # files.py: CSV / Parquet
+│   │       ├── storage/        # files.py: CSV / Parquet
+│   │       └── plotting/       # matplotlib_renderer.py: gráficos (PlotRenderer)
 │   └── bootstrap.py            # composition root + entry point
 └── tests/                      # todo el código de test (src solo contiene producción)
     ├── fakes.py                # proveedores sintéticos que implementan los puertos

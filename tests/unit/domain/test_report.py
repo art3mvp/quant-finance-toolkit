@@ -164,6 +164,16 @@ def test_simulation_section(balanced: Portfolio) -> None:
     text = balanced.report(sections=["simulacion"], simulation=sim)
     assert f"{sim.quantile(0.05):.2f}" in text
     assert "| Trayectorias | 500 |" in text
+    assert f"| VaR 95% al horizonte | {sim.var(0.95):.2f} |" in text
+    assert f"| CVaR 95% al horizonte (pérdida media en la cola) | {sim.cvar(0.95):.2f} |" in text
+
+
+def test_assets_section_shows_var_and_cvar(balanced: Portfolio) -> None:
+    text = balanced.report(sections=["activos"], confidence=0.99)
+    assert "| Máx. drawdown | VaR | CVaR |" in text
+    r = balanced.returns[balanced.tickers[0]]
+    var, cvar = metrics.historical_var(r, 0.99), metrics.historical_cvar(r, 0.99)
+    assert f"| {var:.2%} | {cvar:.2%} |" in text
 
 
 def test_report_is_deterministic(balanced: Portfolio) -> None:

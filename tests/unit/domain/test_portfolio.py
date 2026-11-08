@@ -11,7 +11,7 @@ import pytest
 from toolkit.domain.errors import InvalidRequestError, InvalidSeriesError
 from toolkit.domain.models import AssetType, Frequency, PriceSeries
 from toolkit.domain.portfolio import Portfolio
-from toolkit.domain.simulation import simulate_gbm
+from toolkit.domain.simulation import SimulationResult, simulate_gbm
 
 
 def make_series(
@@ -270,6 +270,30 @@ def test_var_rejects_invalid_confidence(portfolio: Portfolio, bad: float) -> Non
     sim = portfolio.monte_carlo(n_steps=5, n_simulations=10, seed=1)
     with pytest.raises(ValueError):
         sim.var(bad)
+    with pytest.raises(ValueError):
+        sim.cvar(bad)
+
+
+def test_cvar_is_mean_loss_of_the_tail() -> None:
+    # 10 trayectorias de un paso con valores finales 91..100: el cuantil 20 % es 92.8,
+    # así que la cola son 91 y 92 y la pérdida media es 100 - 91.5.
+    finals = np.arange(91.0, 101.0)
+    sim = SimulationResult(
+        paths=np.vstack([np.full(10, 100.0), finals]), initial_value=100.0, mu=0.0, sigma=0.0
+    )
+    assert sim.cvar(0.80) == pytest.approx(8.5)
+    assert sim.var(0.80) == pytest.approx(100.0 - np.quantile(finals, 0.20))
+
+
+def test_cvar_is_never_below_var(portfolio: Portfolio) -> None:
+    sim = portfolio.monte_carlo(n_steps=50, n_simulations=2000, seed=3)
+    for confidence in (0.90, 0.95, 0.99):
+        assert sim.cvar(confidence) >= sim.var(confidence)
+
+
+def test_cvar_with_zero_volatility_equals_var(portfolio: Portfolio) -> None:
+    sim = portfolio.monte_carlo(n_steps=10, n_simulations=5, mu=-0.01, sigma=0.0, seed=1)
+    assert sim.cvar(0.95) == pytest.approx(sim.var(0.95))
 
 
 # --- Divisas --------------------------------------------------------------------

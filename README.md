@@ -4,6 +4,9 @@ Toolkit en Python para **extraer, estandarizar y analizar datos bursátiles y
 macroeconómicos** y **gestionar y simular carteras**. Taller B1-T1, Máster de IA
 aplicada a mercados financieros.
 
+**Autores:** Artem Pesin ([art3mvp](https://github.com/art3mvp)) y
+[JuanPoveda13](https://github.com/JuanPoveda13).
+
 - Descarga **multifuente**, con un adaptador por fuente agrupado por tipo:
 
   | Tipo | Fuente | Datos | `--source` | Clave |
@@ -37,8 +40,7 @@ aplicada a mercados financieros.
   diagnósticos y advertencias de riesgo; `cartera.plots_report()` dibuja rendimiento
   comparado, evolución, drawdown, correlaciones, pesos y riesgo/retorno.
 - **Arquitectura hexagonal**: añadir una fuente nueva no requiere tocar el núcleo
-  (resumen en [Cómo está organizado](#cómo-está-organizado); detalle en
-  [docs/architecture.md](docs/architecture.md), con diagramas UML de clases).
+  (ver [Arquitectura](#arquitectura)).
 - **Notebook de demostración** con datos reales:
   [notebooks/demo_toolkit.ipynb](notebooks/demo_toolkit.ipynb).
 
@@ -127,60 +129,34 @@ toolkit prices bitcoin ethereum --source coingecko --type crypto --start 2026-01
 toolkit macro PET.RWTC.D PET.RBRTE.D NG.RNGWHHD.M --source eia --start 2020-01-01
 ```
 
-Notas sobre las fuentes macro:
+Notas por fuente (lo que conviene saber al usarlas):
 
-- Solo FRED y SEC EDGAR admiten `--as-of`. En el resto, pedirlo es una petición
-  inválida y se informa como error de cada serie.
-- Los ids se envían tal como se escriben (solo se quitan espacios y duplicados): cada
-  adaptador decide si su API distingue mayúsculas. `exr/d.usd.eur.sp00.a` y
-  `EXR/D.USD.EUR.SP00.A` piden la misma serie al BCE.
-- BCE, BIS y Eurostat comparten una base SDMX-CSV (`adapters/outbound/_sdmx.py`). La
-  clave debe fijar todas las dimensiones: si la consulta devuelve varias series, se
-  rechaza en lugar de mezclarlas.
-- Todas las fechas se normalizan al **inicio** del periodo (`2024-Q1` → `2024-01-01`),
-  igual que FRED.
-
-Notas sobre las fuentes regulatorias:
-
-- **SEC EDGAR** devuelve `MacroSeries` (una serie univariante por concepto), así que
-  hereda la descarga en lote y la CLI. Con `--as-of` solo usa los datos **presentados**
-  hasta esa fecha: es la versión *point-in-time* de los fundamentales, como ALFRED para la
-  macro. El índice es la fecha de cierre del periodo. La serie trimestral no tiene el
-  4.º trimestre porque la SEC solo publica el dato anual, y no se deriva.
-- **CNMV** y **ESMA** publican documentos, no series. Por eso tienen su propio modelo
-  (`RegulatoryDocument`), sus puertos (`DocumentProvider` y el caso de uso
-  `ListDocuments`) y su servicio, en lugar de forzarlos en `PriceSeries`/`MacroSeries`.
-  El RSS de la CNMV solo incluye lo publicado desde la sesión anterior.
-
-Notas sobre la fuente fiscal:
-
-- `us_treasury` usa el mismo puerto `MacroProvider`: una serie fiscal es una serie
-  temporal univariante, como una macro. Se separa en `fiscal/` por tipo de fuente.
-- Los endpoints con varias filas por fecha (p. ej. una por tipo de valor) exigen el
-  filtro `campo=valor`, que no distingue mayúsculas. El `record_date` publicado (fin
-  de mes en las series mensuales) se refecha al inicio del periodo, como el resto.
-
-Notas sobre las fuentes de mercado:
-
-- Ninguna de las fuentes REST da `adj_close` en su plan gratuito. Para retornos totales
-  (con dividendos y splits) usa Yahoo.
-- Las barras semanales y mensuales se fechan al **inicio** del periodo en todas las
-  fuentes (Alpha Vantage las publica en la última sesión y se refechan).
-- **Alpha Vantage** gratuito: 1 petición por segundo y cupo diario, y el histórico
-  diario completo (`outputsize=full`) es premium. El adaptador pide `compact` (~100
-  sesiones) cuando el rango cabe; si no, la API lo rechaza con un mensaje claro.
-- **Twelve Data** devuelve como máximo 5000 barras por petición. Los índices pueden no
-  traer volumen, que queda a `NaN`.
-
-Notas sobre las fuentes especializadas:
-
-- **CoinGecko** no ofrece OHLC diario en el plan gratuito: `close` y `volume` vienen de
-  la API y `open/high/low` quedan a `NaN` (no se inventan velas). Las frecuencias
-  semanal, mensual, etc. se agregan en local. Con el plan demo, un `--start` de hace
-  más de 365 días se rechaza antes de llamar a la API.
-- **EIA** devuelve `MacroSeries` (precios de materias primas sin OHLCV). Su API ignora
-  `start`/`end`, así que el adaptador pagina y filtra el rango en local. No tiene vintages
-  (`--as-of`).
+- **`--as-of`** solo lo admiten FRED (vintages de ALFRED) y SEC EDGAR (solo lo
+  **presentado** hasta esa fecha, *point-in-time*). En el resto es una petición inválida
+  y se informa como error de cada serie.
+- **Ids**: se envían tal como se escriben (solo se quitan espacios y duplicados); cada
+  API decide si distingue mayúsculas. En **BCE, BIS y Eurostat** la clave SDMX debe fijar
+  todas las dimensiones: si devuelve varias series, se rechaza en lugar de mezclarlas.
+- **Fechas**: toda observación semanal o menos frecuente se fecha al **inicio** del
+  periodo (`2024-Q1` → `2024-01-01`), sea cual sea la fuente
+  ([Convención de fechas](docs/architecture.md#convención-de-fechas)).
+- **Yahoo** es la única fuente de mercado con `adj_close` gratis: úsala para retornos
+  totales (dividendos y splits).
+- **Alpha Vantage** gratuito: 1 petición por segundo, cupo diario y sin histórico diario
+  completo (`outputsize=full` es premium). Se pide `compact` (~100 sesiones) cuando el
+  rango cabe; si no, la API lo rechaza con un mensaje claro.
+- **Twelve Data**: como máximo 5000 barras por petición; los índices pueden venir sin
+  volumen (`NaN`).
+- **CoinGecko** gratuito: sin OHLC diario, así que `open/high/low` quedan a `NaN` (no se
+  inventan velas) y las frecuencias superiores se agregan en local. Con el plan demo, un
+  `--start` de hace más de 365 días se rechaza antes de llamar a la API.
+- **EIA**: devuelve `MacroSeries`; su API ignora `start`/`end`, así que se pagina y se
+  filtra en local. Sin vintages.
+- **Tesoro de EE. UU.**: los endpoints con varias filas por fecha exigen el filtro
+  `campo=valor` (no distingue mayúsculas).
+- **SEC EDGAR**: el índice es la fecha de cierre del periodo. La serie trimestral no
+  tiene el 4.º trimestre (la SEC solo publica el anual) y no se deriva.
+- **CNMV**: el RSS solo incluye lo publicado desde la sesión anterior.
 
 Ejemplo de salida:
 
@@ -211,7 +187,7 @@ service = build_download_service()  # Yahoo + FRED
 
 result = service.download_prices(
     DownloadRequest(
-        tickers=["AAPL", "MSFT", "^GSPC"],
+        tickers=["AAPL", "MSFT", "XLE", "IEF", "GLD"],   # acciones y ETFs (tipo equity)
         start=date(2020, 1, 1),
         end=date(2024, 12, 31),
         interval=Frequency.DAILY,
@@ -241,7 +217,7 @@ docs = build_document_service("esma").list_documents(DocumentRequest("DLTINS", l
 # Guardar lo descargado (CSV o Parquet): devuelve la ruta de cada fichero
 from toolkit.bootstrap import build_storage_service
 
-build_storage_service("data/", "csv").store(result.series)   # data/AAPL.csv, data/_GSPC.csv...
+build_storage_service("data/", "csv").store(result.series)   # data/AAPL.csv, data/GLD.csv...
 ```
 
 ### Cartera, informes y Monte Carlo
@@ -250,9 +226,11 @@ build_storage_service("data/", "csv").store(result.series)   # data/AAPL.csv, da
 from toolkit.bootstrap import configure_plotting
 from toolkit.domain.portfolio import Portfolio
 
+# Renta variable (AAPL, MSFT), energía (XLE), bonos del Tesoro (IEF) y oro (GLD):
+# activos poco correlacionados entre sí
 cartera = Portfolio(
-    series=[result.series["AAPL"], result.series["MSFT"], result.series["^GSPC"]],
-    weights={"AAPL": 0.4, "MSFT": 0.4, "^GSPC": 0.2},
+    series=list(result.series.values()),
+    weights={"AAPL": 0.20, "MSFT": 0.20, "XLE": 0.15, "IEF": 0.25, "GLD": 0.20},
     alignment="inner",          # o "ffill" (con ffill_limit=5)
 )
 cartera.prices, cartera.returns            # precios alineados y sus retornos
@@ -264,7 +242,7 @@ cartera.mean_return, cartera.volatility    # por periodo, sin anualizar
 sim = cartera.monte_carlo(n_steps=252, n_simulations=2000, seed=42)   # μ y σ estimados
 sim = cartera.monte_carlo(n_steps=252, n_simulations=2000, mu=0.0003, sigma=0.012)
 sim_aapl = cartera.monte_carlo_asset("AAPL", n_steps=126, n_simulations=1000)
-sim.quantile(0.05), sim.var(0.95), sim.prob_loss
+sim.quantile(0.05), sim.var(0.95), sim.cvar(0.95), sim.prob_loss   # CVaR: pérdida media en la cola
 
 # Informe Markdown parametrizable
 texto = cartera.report(
@@ -336,21 +314,18 @@ jupyter lab notebooks/demo_toolkit.ipynb
 
 ### Limpieza y alineación de calendarios
 
-Una cartera combina activos con calendarios distintos: una cripto cotiza 24/7 y cada
-bolsa tiene sus festivos. `Portfolio` **alinea primero los precios** y después calcula
-los retornos (`toolkit.domain.cleaning.align_prices`):
+`Portfolio` alinea los precios en un calendario común **antes** de calcular retornos
+(cripto 24/7, festivos distintos en cada bolsa):
 
-- `alignment="inner"` (por defecto): solo las fechas comunes. Cada retorno cubre el
-  mismo intervalo en todos los activos: el lunes, BTC rinde viernes→lunes, igual que
-  AAPL, y el movimiento del fin de semana no se pierde.
-- `alignment="ffill"`: conserva la unión de fechas rellenando hacia delante como mucho
-  `ffill_limit` periodos. Nunca rellena hacia atrás (*look-ahead*). Cada relleno es un
-  retorno 0 artificial que **reduce** la volatilidad y la correlación medidas, por eso
-  no es el método por defecto.
-- Los precios `NaN`/`inf` se eliminan y se cuentan. Un precio `<= 0` es un error.
+- `alignment="inner"` (por defecto): solo las fechas comunes.
+- `alignment="ffill"`: la unión, rellenando hacia delante como mucho `ffill_limit`
+  periodos. Cada relleno es un retorno 0 artificial que **reduce** la volatilidad y la
+  correlación medidas.
+- Los `NaN`/`inf` se descartan y se cuentan; un precio `<= 0` es un error. Todo queda en
+  `cartera.alignment_report` y en la sección `diagnostico` de `report()`.
 
-Todo lo descartado o rellenado queda en `cartera.alignment_report` y aparece en la
-sección `diagnostico` de `report()`.
+Por qué se alinean precios y no retornos, y el detalle de cada método:
+[Limpieza y alineación](docs/architecture.md#limpieza-y-alineación).
 
 ### ¿Admitir cualquier serie temporal de precios? Estricto en el núcleo, flexible en los adaptadores
 
@@ -389,24 +364,31 @@ Lo que **no** se rechaza a propósito, porque son datos válidos pero con riesgo
 En resumen: los datos **mal formados** son un error, y los datos **válidos pero
 arriesgados** generan un aviso.
 
-## Cómo está organizado
+## Arquitectura
 
-El código sigue una **arquitectura hexagonal**: un núcleo que no sabe de dónde vienen
-los datos ni adónde van, rodeado de adaptadores que traducen cada fuente al mismo
-formato.
+Arquitectura **hexagonal**: un núcleo (`domain/`, `ports/`, `services/`) que no sabe de
+dónde vienen los datos ni adónde van, y adaptadores (`adapters/`) que traducen cada
+fuente al mismo formato. `bootstrap.py` es el único módulo que conoce las clases
+concretas. Las dependencias solo apuntan hacia el núcleo, y
+`tests/unit/test_architecture.py` lo comprueba en cada `pytest`.
 
-| Capa | Carpeta | En una frase |
-|------|---------|--------------|
-| Dominio | `domain/` | Los objetos con los que trabaja todo el mundo (`PriceSeries`, `MacroSeries`, `Portfolio`...), validados al crearse, más la limpieza, las métricas, el informe Markdown y los datos de los gráficos. Sin red, ficheros ni librerías gráficas. |
-| Puertos | `ports/` | Los contratos: qué ofrece el núcleo (`DownloadData`, `ListDocuments`, `StoreSeries`) y qué necesita (`PriceProvider`, `MacroProvider`, `DocumentProvider`, `SeriesRepository`, `PlotRenderer`). |
-| Servicios | `services/` | Los casos de uso: descarga en lote en paralelo, listado de documentos y guardado. Solo hablan con puertos. |
-| Adaptadores | `adapters/` | La traducción con el exterior: la CLI (entrada) y las 15 fuentes, el guardado en ficheros y los gráficos con matplotlib (salida). |
-| Composition root | `bootstrap.py` | El único sitio que conoce las clases concretas: lee `.env` y lo conecta todo. |
+[docs/architecture.md](docs/architecture.md) contiene el diagrama de arquitectura, los
+**diagramas UML de clases**, qué hay en cada capa, la regla de dependencias, el flujo de
+una petición, el criterio de errores y cómo extender el sistema.
 
-Las dependencias solo apuntan hacia dentro (adaptadores → puertos → dominio) y un
-test (`tests/unit/test_architecture.py`) lo comprueba en cada ejecución de `pytest`.
-Qué hay en cada capa, la regla completa, el criterio de errores y la convención de
-fechas están en [docs/architecture.md](docs/architecture.md).
+```
+├── pyproject.toml          # dependencias, entry point `toolkit`, pytest, ruff
+├── .env.example            # claves de API
+├── docs/architecture.md    # diseño y diagramas
+├── notebooks/              # demo_toolkit.ipynb
+├── src/toolkit/
+│   ├── domain/             # modelos, cartera, limpieza, métricas, Monte Carlo, informe
+│   ├── ports/              # contratos inbound (casos de uso) y outbound (fuentes, guardado, gráficos)
+│   ├── services/           # descarga en lote, documentos, guardado
+│   ├── adapters/           # inbound/cli.py y outbound/ (fuentes por tipo, storage, plotting)
+│   └── bootstrap.py        # composition root + entry point
+└── tests/                  # unit/, integration/, resources/ (respuestas grabadas), fakes.py
+```
 
 ## Tests
 
@@ -417,59 +399,8 @@ pytest --cov=toolkit        # con cobertura
 ruff check .                # linter
 ```
 
-**Ningún test sale a la red.** `tests/conftest.py` bloquea cualquier conexión: si a un
-test le falta un mock, falla con un mensaje claro en lugar de llamar a la API real.
-
-| Tipo | Carpeta | Qué es real | Qué se simula |
-|------|---------|-------------|---------------|
-| Unitarios | `tests/unit/` | una pieza (un modelo, un servicio, un adaptador) | lo demás: fakes (`tests/fakes.py`) o HTTP mínimo escrito a mano |
-| Integración | `tests/integration/` | todo `src`: `bootstrap`, CLI, servicios, adaptadores, `HttpClient`, `Portfolio`, ficheros | solo las APIs, con **respuestas reales grabadas** (`tests/resources/`) |
-
-Los tests de integración cubren las 15 fuentes. Para cada una comprueban una respuesta
-correcta y otra de error, ambas tal como las devolvió la API: un 404, un 400 con XML,
-un HTTP 200 con el error en el cuerpo, el límite de peticiones de Alpha Vantage... Los
-valores esperados se leen del cuerpo grabado, no del adaptador. El mock es estricto:
-si un adaptador cambia la URL o un parámetro, el test falla, igual que fallaría contra
-la API real.
-
-Las credenciales aparecen en las grabaciones como `<NOMBRE_DE_LA_VARIABLE>` y las
-respuestas muy grandes están recortadas sin cambiar su estructura. Un test comprueba que
-ninguna grabación contiene una clave y que todas están en uso.
-
-## Estructura del proyecto
-
-```
-├── pyproject.toml              # dependencias, entry point `toolkit`, pytest, ruff
-├── .env.example                # FRED_API_KEY, EIA_API_KEY, COINGECKO_API_KEY...
-├── docs/
-│   └── architecture.md         # capas, regla de dependencias, flujo, diagrama
-├── notebooks/
-│   └── demo_toolkit.ipynb      # recorrido con datos reales
-├── src/toolkit/
-│   ├── domain/                 # núcleo: models.py, documents.py, errors.py, portfolio.py,
-│   │                           #   simulation.py, cleaning.py, metrics.py, report.py, plotting.py
-│   ├── ports/                  # inbound.py (casos de uso), outbound.py (fuentes y SeriesRepository)
-│   ├── services/               # download_service.py, document_service.py, storage_service.py
-│   ├── adapters/
-│   │   ├── inbound/cli.py      # argparse
-│   │   └── outbound/           # un subpaquete por tipo de fuente
-│   │       ├── _http.py        # cliente HTTP común (reintentos, ocultar claves)
-│   │       ├── _prices.py      # normalización OHLCV común
-│   │       ├── _periods.py     # periodos, frecuencias, clip y refechado al inicio
-│   │       ├── _sdmx.py        # base SDMX-CSV (BCE, BIS, Eurostat)
-│   │       ├── market/         # yahoo, alpha_vantage, twelve_data
-│   │       ├── macro/          # fred, ecb, eurostat, bis, world_bank, banco_espana
-│   │       ├── fiscal/         # us_treasury
-│   │       ├── regulatory/     # sec_edgar (series), cnmv y esma (documentos)
-│   │       ├── specialized/    # coingecko.py, eia.py
-│   │       ├── storage/        # files.py: CSV / Parquet
-│   │       └── plotting/       # matplotlib_renderer.py: gráficos (PlotRenderer)
-│   └── bootstrap.py            # composition root + entry point
-└── tests/                      # todo el código de test (src solo contiene producción)
-    ├── fakes.py                # proveedores sintéticos que implementan los puertos
-    ├── unit/{domain,services,adapters}/
-    ├── unit/test_architecture.py
-    ├── integration/            # todo src real, APIs con respuestas grabadas
-    ├── resources/<fuente>/     # respuestas reales grabadas (sin credenciales)
-    └── conftest.py             # bloquea la red en todos los tests
-```
+**Ningún test sale a la red** (`tests/conftest.py` lo bloquea). Los unitarios usan fakes
+(`tests/fakes.py`) o HTTP simulado; los de integración ejecutan todo `src` contra
+**respuestas reales grabadas** de las 15 fuentes (`tests/resources/`), un caso correcto
+y otro de error por fuente. Detalle en
+[Cómo se prueba cada capa](docs/architecture.md#cómo-se-prueba-cada-capa).

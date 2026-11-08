@@ -192,9 +192,18 @@ def _section_activos(ctx: _Context) -> str:
                 _num(metrics.sharpe_ratio(r, ctx.ppy, ctx.risk_free)),
                 _pct(metrics.max_drawdown(r)),
                 _pct(metrics.historical_var(r, ctx.confidence)),
+                _pct(metrics.historical_cvar(r, ctx.confidence)),
             ]
         )
-    header = ["Activo", "Retorno anual", "Volatilidad anual", "Sharpe", "Máx. drawdown", "VaR"]
+    header = [
+        "Activo",
+        "Retorno anual",
+        "Volatilidad anual",
+        "Sharpe",
+        "Máx. drawdown",
+        "VaR",
+        "CVaR",
+    ]
     return "\n".join(
         [
             "## Activos",
@@ -262,6 +271,7 @@ def _section_simulacion(ctx: _Context) -> str:
         ["Mediana del valor final", _num(sim.quantile(0.5))],
         [f"Percentil {1 - c:.0%} del valor final", _num(sim.quantile(1 - c))],
         [f"VaR {c:.0%} al horizonte", _num(sim.var(c))],
+        [f"CVaR {c:.0%} al horizonte (pérdida media en la cola)", _num(sim.cvar(c))],
         ["Probabilidad de pérdida", _pct(sim.prob_loss, 1)],
     ]
     return "\n".join(

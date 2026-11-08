@@ -9,7 +9,7 @@ description = "Toolkit para extraer, estandarizar y analizar datos bursátiles y
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Artem Pesin" }]
+authors = [{ name = "Artem Pesin" }, { name = "JuanPoveda13" }]
 dependencies = [
     "pandas>=2.2",
     "numpy>=1.24",

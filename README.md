@@ -62,6 +62,36 @@ aplicada a mercados financieros.
 
 ## Instalación
 
+Hay dos formas: instalarlo como librería directamente desde GitHub (para usarlo
+en tus propios scripts o notebooks) o clonar el repositorio (para desarrollar,
+ejecutar los tests o abrir el notebook de demostración).
+
+### Como librería, sin clonar el repositorio
+
+```bash
+pip install "git+https://github.com/art3mvp/quant-finance-toolkit.git@v0.1.0"
+
+# con soporte para guardar en Parquet:
+pip install "toolkit-financiero[parquet] @ git+https://github.com/art3mvp/quant-finance-toolkit.git@v0.1.0"
+
+# última versión de la rama main (puede cambiar sin aviso):
+pip install "git+https://github.com/art3mvp/quant-finance-toolkit.git"
+```
+
+Esto instala el paquete `toolkit` y el comando `toolkit` (`toolkit --help`). Las
+API keys se leen de las variables de entorno o de un fichero `.env` en el
+directorio desde el que ejecutes tu código; puedes usar como plantilla
+[.env.example](.env.example). Para actualizar a una versión nueva, repite el
+`pip install` con el tag correspondiente.
+
+En `requirements.txt` o en las dependencias de otro `pyproject.toml`:
+
+```text
+toolkit-financiero @ git+https://github.com/art3mvp/quant-finance-toolkit.git@v0.1.0
+```
+
+### Clonando el repositorio (desarrollo)
+
 ```bash
 git clone https://github.com/art3mvp/quant-finance-toolkit.git
 cd quant-finance-toolkit

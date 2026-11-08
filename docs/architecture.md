@@ -58,6 +58,8 @@ flowchart LR
 
     CLI --> PIN
     NB --> PIN
+    CLI -->|"peticiones y errores"| DOM
+    NB -->|"Portfolio · report() · monte_carlo()"| DOM
     POUT -. implementado por .-> SRC
     POUT -. implementado por .-> STO
     POUT -. implementado por .-> PLT
@@ -73,6 +75,15 @@ Las flechas continuas son dependencias de código y **siempre apuntan hacia el
 dominio**. Las discontinuas indican qué adaptador cumple cada puerto: el adaptador no
 hereda del puerto ni lo importa necesariamente; basta con que tenga los mismos métodos
 (tipado estructural, PEP 544).
+
+Los adaptadores inbound entran por dos sitios. Lo que necesita **I/O** (descargar,
+listar documentos, guardar) pasa siempre por un puerto inbound, porque detrás hay un
+adaptador outbound que cambiar. El **análisis** (`Portfolio`, `report()`, Monte Carlo,
+métricas) se usa directamente desde el dominio: es cálculo puro en memoria, sin nada
+que inyectar salvo el renderer de gráficos, y el enunciado lo pide como métodos de la
+cartera. Un caso de uso que solo reenviara llamadas a `Portfolio` añadiría una capa sin
+desacoplar nada. Lo que un adaptador inbound **nunca** importa son puertos outbound,
+servicios ni otros adaptadores.
 
 La flecha *Dominio → Puertos outbound* es la única excepción aparente: `Portfolio` y
 `SimulationResult` delegan el dibujo en un `PlotRenderer`. El protocolo se **define en
@@ -159,7 +170,7 @@ classDiagram
         <<dataclass>>
         +dict series
         +dict errors
-        +ok() bool
+        +bool ok «propiedad»
     }
     class Portfolio {
         <<dataclass frozen>>
@@ -201,6 +212,7 @@ classDiagram
         +float sigma
         +quantile(q) float
         +var(confidence) float
+        +cvar(confidence) float
         +percentile_bands(qs) DataFrame
         +plot(renderer) Any
     }
@@ -284,7 +296,7 @@ classDiagram
     }
     class DocumentProvider {
         <<Protocol · outbound>>
-        +fetch_documents(request) list
+        +fetch_documents(query, start, end, limit) list
     }
     class SeriesRepository {
         <<Protocol · outbound>>
@@ -368,7 +380,7 @@ consumen.
   o rellenado (ver [Limpieza y alineación](#limpieza-y-alineación)).
 - **Análisis** (`portfolio.py`, `simulation.py`, `metrics.py`): `Portfolio` (pesos,
   precios y retornos alineados, avisos de divisa), Monte Carlo (`simulate_gbm`,
-  `SimulationResult`) y métricas puras (anualización, Sharpe, drawdown, VaR/CVaR).
+  `SimulationResult`, con VaR y CVaR del valor final) y métricas puras (anualización, Sharpe, drawdown, VaR/CVaR).
 - **Informes** (`report.py`, `plotting.py`): `Portfolio.report()` genera Markdown;
   `plots_report()` y `SimulationResult.plot()` preparan los datos de los gráficos y
   delegan el dibujo en un `PlotRenderer` inyectado.
@@ -509,11 +521,59 @@ También comprueba que `src/` no contiene código de test (ficheros `test_*`/`fa
 - **De extremo a extremo**: `bootstrap.main` con argumentos de consola, ficheros reales
   en un directorio temporal y las mismas grabaciones.
 
-Ningún test accede a la red: `tests/conftest.py` lo bloquea.
+Ningún test accede a la red: `tests/conftest.py` lo bloquea, así que si a un test le
+falta un mock falla con un mensaje claro en lugar de llamar a la API real.
+
+Sobre las grabaciones de integración:
+
+- Cada fuente tiene una respuesta correcta y otra de error, tal como las devolvió la API
+  (un 404, un 400 con XML, un HTTP 200 con el error en el cuerpo, el límite de peticiones
+  de Alpha Vantage...).
+- Los valores esperados se leen del cuerpo grabado, no del adaptador.
+- El mock es estricto: si un adaptador cambia la URL o un parámetro, el test falla, igual
+  que fallaría contra la API real.
+- Las credenciales aparecen como `<NOMBRE_DE_LA_VARIABLE>` y las respuestas muy grandes
+  están recortadas sin cambiar su estructura. Un test comprueba que ninguna grabación
+  contiene una clave y que todas están en uso.
 
 ## Flujo de una petición
 
 `toolkit prices AAPL ^GSPC --start 2020-01-01 --out data/`:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant B as bootstrap.main
+    participant C as CLI (inbound)
+    participant St as StorageService
+    participant D as DownloadService
+    participant Y as YahooPriceProvider
+    participant PS as PriceSeries (dominio)
+    participant R as FileSeriesRepository
+
+    U->>B: toolkit prices AAPL ^GSPC --out data/
+    B->>C: run(argv, fábricas de casos de uso)
+    C->>B: storage_factory("data", "csv")
+    B-->>C: StoreSeries (StorageService + FileSeriesRepository)
+    Note over C,B: un destino inválido falla aquí, antes de descargar
+    C->>B: service_factory("yahoo", None)
+    B-->>C: DownloadData (DownloadService + YahooPriceProvider)
+    C->>D: download_prices(DownloadRequest)
+    par un hilo por ticker
+        D->>Y: fetch_prices("AAPL", ...)
+        Y->>PS: PriceSeries(...): valida y calcula media y std
+        Y-->>D: PriceSeries
+    and
+        D->>Y: fetch_prices("^GSPC", ...)
+        Y-->>D: PriceSeries o SeriesNotFoundError
+    end
+    D-->>C: DownloadResult (series en orden de entrada + errores)
+    C->>St: store(result.series)
+    St->>R: save(series)
+    R-->>St: rutas de los ficheros
+    St-->>C: rutas
+    C-->>U: resumen y código de salida (0, 1 o 2)
+```
 
 1. **`bootstrap.main`** inyecta las fábricas en la CLI, que parsea los argumentos.
 2. Como hay `--out`, la CLI pide a la fábrica de almacenamiento un `StoreSeries`:
@@ -619,8 +679,9 @@ diagnóstico y avisa si se ha descartado más del 10 % de las fechas.
 - **Nuevo destino de persistencia** (base de datos, S3...): un adaptador en
   `adapters/outbound/storage/` que cumpla `SeriesRepository`, y cablearlo en
   `build_storage_service`. La CLI y los notebooks no cambian.
-- **Nuevo punto de entrada** (API REST, notebook): un adaptador inbound que use solo los
-  puertos inbound y reciba los casos de uso desde `bootstrap`.
+- **Nuevo punto de entrada** (API REST, notebook): un adaptador inbound que reciba los
+  casos de uso desde `bootstrap` y use solo puertos inbound y dominio, nunca puertos
+  outbound ni adaptadores.
 - **Nuevo motor de gráficos** (plotly, bokeh...): un adaptador en
   `adapters/outbound/plotting/` que cumpla `PlotRenderer` y una línea en
   `PLOT_RENDERERS`. `Portfolio` y `SimulationResult` no cambian.

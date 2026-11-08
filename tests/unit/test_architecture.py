@@ -142,11 +142,15 @@ def check_module(module: str, imports: set[str]) -> list[Violation]:
                 continue
             target = ".".join(imported.split(".")[1:3])
             violations.append(Violation(module, imported, f"{label} no puede depender de {target}"))
-        elif not is_adapter and top not in sys.stdlib_module_names:
-            if top not in PURE_THIRD_PARTY and top != "__future__":
-                violations.append(
-                    Violation(module, imported, f"librería de terceros no permitida en {label}")
-                )
+        elif (
+            not is_adapter
+            and top not in sys.stdlib_module_names
+            and top not in PURE_THIRD_PARTY
+            and top != "__future__"
+        ):
+            violations.append(
+                Violation(module, imported, f"librería de terceros no permitida en {label}")
+            )
     return violations
 
 

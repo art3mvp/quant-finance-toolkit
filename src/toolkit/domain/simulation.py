@@ -127,6 +127,18 @@ class SimulationResult:
         confidence = _check_probability("confidence", confidence)
         return self.initial_value - self.quantile(1.0 - confidence)
 
+    def cvar(self, confidence: float = 0.95) -> float:
+        """CVaR (Expected Shortfall) del valor final: pérdida media en la cola del VaR.
+
+        Media de ``initial_value - final`` en las trayectorias que terminan en el cuantil
+        ``1 - confidence`` o por debajo. A diferencia del VaR, dice cuánto se pierde
+        cuando se cruza el umbral, así que nunca es menor que él.
+        """
+        confidence = _check_probability("confidence", confidence)
+        finals = self.final_values
+        tail = finals[finals <= self.quantile(1.0 - confidence)]
+        return float(self.initial_value - tail.mean())
+
     def percentile_bands(self, qs: Sequence[float] = DEFAULT_BANDS) -> pd.DataFrame:
         """Percentiles de las trayectorias en cada paso.
 

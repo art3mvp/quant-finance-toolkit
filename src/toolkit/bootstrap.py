@@ -18,6 +18,11 @@ Uso desde Python::
     service = build_download_service(None, "ecb")      # solo macro
     docs = build_document_service("cnmv")
     storage = build_storage_service("data/", "csv")    # StoreSeries sobre ficheros
+
+    configure_plotting()          # renderer predeterminado para plots_report() / plot()
+    renderer = build_plot_renderer("matplotlib")       # o inyectarlo explícitamente
+
+Los renderers de gráficos se importan de forma perezosa: la CLI no carga matplotlib.
 """
 
 from __future__ import annotations
@@ -48,7 +53,8 @@ from toolkit.adapters.outbound.specialized.coingecko import CoinGeckoPriceProvid
 from toolkit.adapters.outbound.specialized.eia import EiaMacroProvider
 from toolkit.adapters.outbound.storage.files import FileSeriesRepository
 from toolkit.domain.errors import ConfigurationError
-from toolkit.ports.outbound import DocumentProvider, MacroProvider, PriceProvider
+from toolkit.domain.plotting import set_default_renderer
+from toolkit.ports.outbound import DocumentProvider, MacroProvider, PlotRenderer, PriceProvider
 from toolkit.services.document_service import DocumentService
 from toolkit.services.download_service import DownloadService
 from toolkit.services.storage_service import StorageService
@@ -88,6 +94,21 @@ DOCUMENT_PROVIDERS: dict[str, Callable[[], DocumentProvider]] = {
     "cnmv": CnmvDocumentProvider,
     "esma": EsmaDocumentProvider,
 }
+
+
+def _matplotlib_renderer() -> PlotRenderer:
+    # Import perezoso: matplotlib solo se carga cuando alguien quiere gráficos.
+    from toolkit.adapters.outbound.plotting.matplotlib_renderer import MatplotlibPlotRenderer
+
+    return MatplotlibPlotRenderer()
+
+
+#: Fábricas de renderers de gráficos por nombre.
+PLOT_RENDERERS: dict[str, Callable[[], PlotRenderer]] = {
+    "matplotlib": _matplotlib_renderer,
+}
+
+DEFAULT_PLOT_RENDERER = "matplotlib"
 
 
 @functools.cache
@@ -144,6 +165,33 @@ def build_storage_service(directory: str | Path, fmt: str = "csv") -> StorageSer
         ConfigurationError: Si se pide Parquet sin ``pyarrow``.
     """
     return StorageService(FileSeriesRepository(directory, fmt))
+
+
+def build_plot_renderer(name: str = DEFAULT_PLOT_RENDERER) -> PlotRenderer:
+    """Construye el adaptador de gráficos ``name`` (ver ``PLOT_RENDERERS``).
+
+    Raises:
+        ConfigurationError: Si no está registrado o falta su librería.
+    """
+    factory = _lookup(PLOT_RENDERERS, name, "gráficos")
+    try:
+        return factory()
+    except ImportError as exc:
+        raise ConfigurationError(
+            f"El renderer {name!r} necesita una librería que no está instalada ({exc.name}): "
+            "reinstala el toolkit con `pip install -e .`"
+        ) from exc
+
+
+def configure_plotting(name: str = DEFAULT_PLOT_RENDERER) -> PlotRenderer:
+    """Registra ``name`` como renderer predeterminado de ``plots_report()`` y ``plot()``.
+
+    Returns:
+        El renderer registrado.
+    """
+    renderer = build_plot_renderer(name)
+    set_default_renderer(renderer)
+    return renderer
 
 
 def _build(registry: Mapping[str, Callable[[], P]], name: str | None, kind: str) -> P | None:

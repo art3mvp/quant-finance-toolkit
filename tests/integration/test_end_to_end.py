@@ -154,3 +154,26 @@ def test_notebook_flow_download_portfolio_store_reload(replay: Replay, tmp_path:
     pd.testing.assert_frame_equal(
         reloaded, prices.series["MSFT"].data, check_freq=False, check_index_type=False
     )
+
+
+def test_notebook_flow_report_and_plots(replay: Replay) -> None:
+    """Datos reales grabados → cartera → informe Markdown → gráficos con el renderer real."""
+    from matplotlib.figure import Figure
+
+    replay("yahoo", "aapl_daily")
+    replay("yahoo", "msft_daily")
+    prices = build_download_service("yahoo", None).download_prices(
+        DownloadRequest(tickers=["AAPL", "MSFT"], start=date(2024, 1, 2), end=date(2024, 1, 31))
+    )
+    portfolio = Portfolio(list(prices.series.values()), {"AAPL": 0.5, "MSFT": 0.5})
+    sim = portfolio.monte_carlo(n_steps=21, n_simulations=200, seed=1)
+
+    report = portfolio.report(risk_free=0.03, simulation=sim)
+    assert report.startswith("# Informe de cartera")
+    assert "| AAPL | 50.0% |" in report
+    assert "Muestra corta: 20 retornos" in report
+    assert "Divisas mezcladas" not in report  # ambas en USD
+
+    bootstrap.configure_plotting()
+    assert isinstance(portfolio.plots_report(), Figure)
+    assert isinstance(sim.plot(), Figure)

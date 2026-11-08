@@ -161,3 +161,43 @@ def test_settings_are_loaded_once(monkeypatch: pytest.MonkeyPatch) -> None:
     finally:
         REAL_LOAD_SETTINGS.cache_clear()
     assert len(calls) == 1
+
+
+# --- Gráficos -------------------------------------------------------------------
+
+
+def test_build_plot_renderer_returns_matplotlib() -> None:
+    from toolkit.adapters.outbound.plotting.matplotlib_renderer import MatplotlibPlotRenderer
+
+    assert isinstance(bootstrap.build_plot_renderer(), MatplotlibPlotRenderer)
+    assert isinstance(bootstrap.build_plot_renderer(" Matplotlib "), MatplotlibPlotRenderer)
+
+
+def test_build_plot_renderer_unknown_name() -> None:
+    with pytest.raises(ConfigurationError, match="gráficos"):
+        bootstrap.build_plot_renderer("plotly")
+
+
+def test_configure_plotting_sets_default() -> None:
+    from toolkit.domain.plotting import get_default_renderer
+
+    renderer = bootstrap.configure_plotting()
+    assert get_default_renderer() is renderer
+
+
+def test_build_plot_renderer_without_library(monkeypatch: pytest.MonkeyPatch) -> None:
+    def missing() -> None:
+        raise ModuleNotFoundError("No module named 'matplotlib'", name="matplotlib")
+
+    monkeypatch.setitem(bootstrap.PLOT_RENDERERS, "matplotlib", missing)
+    with pytest.raises(ConfigurationError, match="matplotlib"):
+        bootstrap.build_plot_renderer()
+
+
+def test_bootstrap_does_not_import_matplotlib_eagerly() -> None:
+    import subprocess
+    import sys
+
+    code = "import sys, toolkit.bootstrap; print('matplotlib' in sys.modules)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "False"

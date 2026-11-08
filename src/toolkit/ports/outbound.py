@@ -6,6 +6,10 @@ ellos: basta con exponer los mismos atributos y métodos (tipado estructural, PE
 
 Se usa ``typing.Protocol`` con ``@runtime_checkable`` para que ``DownloadService`` pueda
 comprobar con ``isinstance`` que un adaptador cumple el contrato.
+
+``PlotRenderer`` (visualización) se define en ``toolkit.domain.plotting`` porque lo
+requieren métodos del propio dominio (``Portfolio.plots_report``), que no puede importar
+los puertos; aquí se reexporta para que los adaptadores lo encuentren junto al resto.
 """
 
 from __future__ import annotations
@@ -16,6 +20,15 @@ from typing import Protocol, runtime_checkable
 
 from toolkit.domain.documents import RegulatoryDocument
 from toolkit.domain.models import AssetType, Frequency, MacroSeries, PriceSeries
+from toolkit.domain.plotting import PlotRenderer
+
+__all__ = [
+    "DocumentProvider",
+    "MacroProvider",
+    "PlotRenderer",
+    "PriceProvider",
+    "SeriesRepository",
+]
 
 
 @runtime_checkable

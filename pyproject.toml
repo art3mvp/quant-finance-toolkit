@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "toolkit-financiero"
 version = "0.1.0"
-description = "Toolkit para extraer, estandarizar y analizar datos bursátiles y gestionar carteras (arquitectura hexagonal)."
+description = "Toolkit para extraer, estandarizar y analizar datos bursátiles y gestionar carteras: informes, gráficos y Monte Carlo (arquitectura hexagonal)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -16,6 +16,7 @@ dependencies = [
     "yfinance>=0.2.40",
     "requests>=2.31",
     "python-dotenv>=1.0",
+    "matplotlib>=3.8",  # gráficos: plots_report() y SimulationResult.plot()
 ]
 
 [project.optional-dependencies]
@@ -24,7 +25,6 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
     "responses>=0.25",
-    "matplotlib>=3.8",
     "pyarrow>=15.0",
 ]
 parquet = ["pyarrow>=15.0"]
